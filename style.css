@@ -1,0 +1,56 @@
+@import url('https://fonts.googleapis.com/css?family=Raleway:400,600,700&display=swap');
+ /*font awesome icons*/
+@import url('https://stackpath.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css');
+html{
+	scroll-behavior: smooth;
+}
+body{
+	font-family: 'Raleway', sans-serif;
+	margin:0;
+}
+
+*{
+	box-sizing: border-box;
+	text-decoration: none;
+	outline: none;
+}
+
+.home{
+	min-height: 100vh;
+	background-image: url("images/ai_img.jpeg");
+	background-size: cover;
+	background-position: center;
+	float: left;
+	width: 100%;
+	padding:0px 15px;
+	position: relative;
+}
+
+
+.container{
+	max-width: 1170px;
+	margin:auto;
+}
+.home .home-text{
+  position: absolute;
+	top:50%;
+	transform: translateY(-50%);
+  text-transform: capitalize;
+	left: auto;
+	z-index: 10;
+}
+
+.home .home-text h1{
+	font-size:35px;
+	color:#ffffff;
+	margin:10px 0px;
+	font-weight:400;
+	animation: slideLeft 1.5s ease;
+}
+.home .home-text h3{
+	font-size:60px;
+	color:#f3971b;
+	margin:15px 0px 0px;
+	font-weight:700;
+	animation: slideRight 1.5s ease;
+}

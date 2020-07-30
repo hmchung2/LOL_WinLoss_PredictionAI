@@ -1,1 +1,1 @@
-# lol_ai_website
+# lol_prediction_server
