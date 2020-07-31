@@ -18,8 +18,8 @@ import api_config
 main_api_key = api_config.main_api_key
 
 %matplotlib inline
-api_key1 = "RGAPI-688d1da6-a461-478b-a273-8e64ce863324"
-api_key2 = "RGAPI-804ac2a3-7a07-47a9-a6dd-c098ea335c3a"
+api_key1 = "RGAPI-f81130a6-230f-40e5-b8ca-80eb16007392"
+api_key2 = "RGAPI-f95fb513-8e26-4259-adfc-fe5ced4fc129"
 
 api_key_list = [api_key1 , api_key2]
 
@@ -62,7 +62,7 @@ def champion_key_to_id(champ_info,key_list):
     champion_names = new_df.loc[key_list,'id']
     return champion_names
 
-champion_key_to_id(champ_info,["26","142"])
+champion_key_to_id(champ_info,["26","142"]).tolist()
 
 
 
@@ -119,7 +119,6 @@ def df_summoner_accountid(league_df,api_key):
 gm_df = show_grandmaster_info(main_api_key  )
 gm_df = gm_df.loc[:5,:]
 #
-
 gm_df = df_summoner_accountid(gm_df, main_api_key )
 
 league_df = gm_df.loc[:2,:]
@@ -153,7 +152,7 @@ def accountID_to_matchINFO(league_df3, endIndex , api_key):
 
 match_info_df =  accountID_to_matchINFO(league_df3 = league_df, endIndex=5, api_key= main_api_key)
 match_info_df = match_info_df.reset_index(drop =True )
-match_info_df
+
 # Match 데이터 받기 (gameId를 통해 경기의 승패, 팀원과 같은 정보가 담겨있다.)
 ################# interchangeable but not recommending since we will use the data in the futrue  #########################33
 def game_id_to_match_detail(match_info_df2, api_key):
@@ -184,11 +183,8 @@ def game_id_to_match_detail(match_info_df2, api_key):
 
 
 match_df = game_id_to_match_detail(match_info_df, main_api_key)
+
 match_df.to_csv('MatchData.csv') # 파일로 저장
-match_info_df2 = merged_large.copy()
-api_url='https://kr.api.riotgames.com/lol/match/v4/matches/' + str(match_info_df2['gameId'].iloc[i]) + '?api_key=' + main_api_key
-r = requests.get(api_url)
-r.json()
 
 ######################################################
 
@@ -247,8 +243,9 @@ def find_new_version(df):
     return result
 
 
+
 match_df  = modifiy_match_df_original(match_df)
-match_df.shape
+match_df
 #match_df2 = modfify_match_df(match_df2)
 #match_df.to_csv("match_df.csv")
 
@@ -344,9 +341,6 @@ def MapScaler(data, x_range=(-120, 14870), y_range=(-120, 14980)): # x, y의 범
     scaler.fit(y_range)
     y = scaler.transform(y)
     return x, 512 - y
-
-
-
 
 
 def SupJugPredict(data, player_spells, i): # 서폿과 정글을 판단하기 위한 함수
@@ -486,9 +480,8 @@ def merge_lane_info_to_match_info(match, lane):
     return merged
 
 merged_info = merge_lane_info_to_match_info(match_df, lane_info)
-merged_info.columns
-match_df.columns
-lane_info.columns
+merged_info
+
 
 # 필요 없는 변수 삭제 함수
 def modify_merged_info(df):
@@ -524,7 +517,7 @@ def get_win_loss_col(df):
 
 
 merged_info = get_win_loss_col(merged_info)
-merged_info.shape
+
 
 
 # 챔피온 아이디 플러스 서머너 encrypted
@@ -546,7 +539,6 @@ def get_champion_sumId_cols(df):
 
 merged_added = get_champion_sumId_cols(merged_info)
 
-merged_added
 
 # def champion_detail_for_all_lanes(df,api_key_list,lanes):
 #     #all_lanes = ["TOP100","JUNGLE100","MID100","ADC100","SUPPORT100","TOP200","JUNGLE200","MID200","ADC200","SUPPORT200"]
@@ -604,12 +596,9 @@ merged_added
 
 
 #####################3
-api_key_list = [api_key1, api_key2]
 
-all_lanes =["TOP100","JUNGLE100","MID100","ADC100","SUPPORT100","TOP200","JUNGLE200","MID200","ADC200","SUPPORT200"]
+all_lanes =["TOP100","JUNGLE100","MID100","ADC100","SUPPORT100","TOP200","JUNGLE200","MID200","ADC200", "SUPPORT200"]
 
-
-merged_added.columns
 
 def coerce_df_columns_to_numeric(df):
     columns = []
@@ -619,8 +608,6 @@ def coerce_df_columns_to_numeric(df):
     column_list = columns
     df[column_list] = df[column_list].apply(pd.to_numeric, errors='coerce')
     return df
-merged_added = coerce_df_columns_to_numeric(merged_added)
-
 
 def del_nan_merge_large(df):
     merged_large = df.copy()
@@ -629,8 +616,7 @@ def del_nan_merge_large(df):
     return merged_large
 
 
-merged_added= del_nan_merge_large(merged_added)
-merged_added.to_csv("merged_large_del_na.csv")
+
 
 # failed just sum of levels in two
 #one = path +"lol/champion-mastery/v4/scores/by-summoner/{}?api_key={}".format(encryptedSummonerId,api_key)
@@ -660,43 +646,10 @@ merged_added.to_csv("merged_large_del_na.csv")
 
 # same as 5 but just use name instead
 #six = path +"lol/summoner/v4/summoners/by-name/{}?api_key={}".format(summonerName,api_key)
-'https://kr.api.riotgames.com/lol/summoner/v4/summoners/by-name/' + league_df['summonerName'].iloc[i] + '?api_key=' + api_key
-path = 'https://kr.api.riotgames.com/'
-new  = path +"lol/summoner/v4/summoners/by-name/{}?api_key={}".format(gm_df.summonerName.iloc[0],api_key)
-r = requests.get(new)
-r.json()
-new
-gm_df.head()
 
-/lol/summoner/v4/summoners/{encryptedSummonerId}
-/lol/summoner/v4/summoners/by-name/{summonerName}
-
-merged_large.TOP100_sumID.iloc[0]
-merged_added.iloc[0,:]
-path = "https://kr.api.riotgames.com/lol/summoner/v4/summoners/{}?api_key={}".format(merged_added.TOP100_sumID.iloc[0], main_api_key  )
-r= requests.get(path)
-r.json()
-
-path = "https://kr.api.riotgames.com/lol/summoner/v4/summoners/by-name/{}?api_key={}".format(merged_added.TOP100_sumName.iloc[0],main_api_key )
-r= requests.get(path)
-r.json()
-
-path = "https://kr.api.riotgames.com/lol/summoner/v4/summoners/by-name/{}?api_key={}".format(merged_added.TOP100_sumName.iloc[0],api_key2 )
-r= requests.get(path)
-r.json()
-merged_large = merged_added
-
-lane_team = "TOP100"
-
-merged_large.columns
-i = 0
-
-
-########################## not interchageable #####################################################
-############################# but very interchangeable if you use name ############################
-
-def get_summonerLevel(df, api_key_list ,lane_team):
+def get_summonerLevel(df, main_api_key, api_key_list ,lane_team):
     merged_large = df.copy()
+    api_key_list.append(main_api_key)
     api_machine = api_box(api_key_list)
     path = "https://kr.api.riotgames.com/lol/summoner/v4/summoners/by-name/{}?api_key={}"
     merged_large["{}_summonerLevel".format(lane_team)] = None
@@ -716,20 +669,15 @@ def get_summonerLevel(df, api_key_list ,lane_team):
     return merged_large
 
 
-def get_summonerLevel_for_all_lanes(df,api_key_list,lanes):
+def get_summonerLevel_for_all_lanes(df, main_api_key, api_key_list ,all_lanes):
     #all_lanes = ["TOP100","JUNGLE100","MID100","ADC100","SUPPORT100","TOP200","JUNGLE200","MID200","ADC200","SUPPORT200"]
-    merged_added = df.copy()
     for lane in all_lanes:
-        merged_added = get_summonerLevel(merged_added, api_key_list,lane)
+        print(lane)
+        merged_added = get_summonerLevel(df, main_api_key, api_key_list ,lane)
     return merged_added
 
+merge_added = get_summonerLevel_for_all_lanes(merged_added,main_api_key, api_key_list,all_lanes)
 
-
-
-----------------------------------------
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% not interchangeable %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
------------------------------------------
-$$$$$$$$$$$$$$$$$$$$$$$$$$$ but made it kinda working so moving on $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 def get_win_los_rate_info(df, main_api_key, api_key_list, lane_team):
     merged_large = df.copy()
     api_machine  = api_box(api_key_list)
@@ -737,10 +685,10 @@ def get_win_los_rate_info(df, main_api_key, api_key_list, lane_team):
     tempo_path = "https://kr.api.riotgames.com/lol/summoner/v4/summoners/by-name/{}?api_key={}"
     temp_df = pd.DataFrame()
     api_urls = list(map(lambda sum: path.format(sum,main_api_key ), merged_large["{}_sumID".format(lane_team)]  ))
-    if len(api_urls_first) != len(merged_large) or len(api_urls_second) != len(merged_large):
-        print("created api urls do not have the same length as the df, aborting and causing an error on purpose")
+    if len(api_urls) != len(merged_large):
+        print("creted api urls do not have the same length as the df, aborting and causing an error on purpose")
         5 / 0
-    for i in tqdm(range(len(api_urls_first))):
+    for i in tqdm(range(len(api_urls))):
         time.sleep(1)
         try:
             api_url = api_urls[i]
@@ -768,63 +716,53 @@ def get_win_los_rate_info(df, main_api_key, api_key_list, lane_team):
             5/0
         return merged_large
 
-def get_win_los_rate_info_all_lanes(df,api_key_list,lanes):
+def get_win_los_rate_info_all_lanes(df, main_api_key, api_key_list,lanes):
     #all_lanes = ["TOP100","JUNGLE100","MID100","ADC100","SUPPORT100","TOP200","JUNGLE200","MID200","ADC200","SUPPORT200"]
     merged_added = df.copy()
     for lane in all_lanes:
-        merged_added = get_top10avg_champ_detail_info(merged_added, api_key_list,lane)
+        merged_added = get_win_los_rate_info(merged_added, main_api_key , api_key_list,lane)
     return merged_added
 
 
+merged_added = get_win_los_rate_info_all_lanes(merged_added , main_api_key , api_key_list ,all_lanes )
 
 
 
-
-
-
-
-
-$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ not interchangeable but fk $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$4
-
+merged_large = merged_added
 api_machine  = api_box(api_key_list)
-api_machine.switch()
-picked_champion_ids = merged_large["{}_champ".format(lane_team)].tolist()
-picked_champion_ids
-
 path = 'https://kr.api.riotgames.com/lol/champion-mastery/v4/champion-masteries/by-summoner/{}?api_key={}'
-api_url = path.format(merged_large["{}_sumID".format(lane_team)].iloc[0] , main_api_key)
-r = requests.get(api_url)
-r.json()
-path = 'https://kr.api.riotgames.com/lol/champion-mastery/v4/champion-masteries/by-summoner/{}?api_key={}'
-api_url1 = path.format(merged_large["{}_sumID".format(lane_team)].iloc[0] , api_key1)
-r1 = requests.get(api_url1)
-r1.json()
-
 tempo_path = "https://kr.api.riotgames.com/lol/summoner/v4/summoners/by-name/{}?api_key={}"
-tempo_api_url = tempo_path.format(merged_large["{}_sumName".format(lane_team)].iloc[0] , api_machine.switch() )
+merged_large["{}_champion_levels".format(lane_team)] = None
+merged_large["{}_champion_points".format(lane_team)]  = None
+merged_large["{}_tokens".format(lane_team)] = None
+merged_large["{}_lastplaytime".format(lane_team)] = None
+merged_large["{}_ranking_favorite_list".format(lane_team)] = None
+
+
+merged_large["{}_avg_champion_levels".format(lane_team)] = None
+merged_large["{}_avg_champion_points".format(lane_team)] = None
+merged_large["{}_avg_tokens".format(lane_team)] = None
+merged_large["{}_avg_lastplaytime".format(lane_team)] = None
+picked_champion_ids = merged_large["{}_champ".format(lane_team)].tolist()
+api_urls_list = list(map(lambda sum: path.format(sum,main_api_key) , merged_large["{}_sumID".format(lane_team)]   ))
+
+api_url = api_urls_list[i]
+r= requests.get(api_url)
+
+
+tempo_api_url = tempo_path.format(merged_large["{}_sumName".format(lane_team)].iloc[i] , api_machine.switch() )
 tempo_r = requests.get(tempo_api_url)
+tempo_r.json()
+
 tempo_id = tempo_r.json()["id"]
 tempo_id
 api_url = path.format(tempo_id, api_machine.current_api_key)
 r  = requests.get(api_url)
-all_json = r.json()
-
-
-len(all_json)
-
-current_json = all_json[:5]
-picked_id =  picked_champion_ids[i]
-picked_id
-
-championId_list = list(map(lambda x: x["championId"] , all_json))
-picked_id in championId_list
-championId_list.index(54)
+r.json()
 all_json[-1]
-all_json[-1]
+picked_champion_info = all_json[-1]
+picked_champion_info["championLevel"]
 
-picked_index  =  championId_list.index(picked_id)
-all_json[picked_index]
-all_json[-1]
 
 
 
@@ -847,11 +785,11 @@ def get_top10avg_champ_detail_info(df,main_api_key,  api_key_list, lane_team):
     picked_champion_ids = merged_large["{}_champ".format(lane_team)].tolist()
     api_urls_list = list(map(lambda sum: path.format(sum,main_api_key) , merged_large["{}_sumID".format(lane_team)]   ))
 
-    if len(api_urls_first) != len(merged_large) or len(api_urls_second) != len(merged_large) or len(picked_champion_ids) != len(merged_large):
+    if len(api_urls_list) != len(merged_large) or len(picked_champion_ids) != len(merged_large):
         print("created api urls do not have the same length as the df, aborting and causing an error on purpose")
         5 / 0
 
-    for i in tqdm(range(len(api_urls_first))):
+    for i in tqdm(range(len(api_urls_list))):
         try:
             time.sleep(1)
             api_url = api_urls_list[i]
@@ -861,15 +799,16 @@ def get_top10avg_champ_detail_info(df,main_api_key,  api_key_list, lane_team):
             while r.status_code == 429:
                 trials = trials + 1
                 if trials == 70:
+                    print("trails reached 70")
                     continue
-                try:
-                    tempo_api_url = tempo_path.format(merged_large["{}_sumName".format(lane_team)].iloc[0] , api_machine.switch() )
-                    tempo_r = requests.get(tempo_api_url)
-                    tempo_id = tempo_r.json()["id"]
-                    api_url = path.format(tempo_id, api_machine.current_api_key)
-                    r  = requests.get(api_url)
-                except:
-                    continue
+                # try:
+                tempo_api_url = tempo_path.format(merged_large["{}_sumName".format(lane_team)].iloc[i] , api_machine.switch() )
+                tempo_r = requests.get(tempo_api_url)
+                tempo_id = tempo_r.json()["id"]
+                api_url = path.format(tempo_id, api_machine.current_api_key)
+                r  = requests.get(api_url)
+                # except:
+                    # continue
                 time.sleep(1)
 
             all_json = r.json()
@@ -879,6 +818,7 @@ def get_top10avg_champ_detail_info(df,main_api_key,  api_key_list, lane_team):
             if picked_id in championId_list:
                 picked_index  =  championId_list.index(picked_id)
                 picked_champion_info = all_json[picked_index]
+                print(picked_champion_info)
                 merged_large["{}_champion_levels".format(lane_team)].iloc[i] = picked_champion_info["championLevel"]
                 merged_large["{}_champion_points".format(lane_team)].iloc[i] = picked_champion_info["championPoints"]
                 merged_large["{}_tokens".format(lane_team)].iloc[i] = picked_champion_info["tokensEarned"]
@@ -886,6 +826,7 @@ def get_top10avg_champ_detail_info(df,main_api_key,  api_key_list, lane_team):
                 merged_large["{}_ranking_favorite_list".format(lane_team)].iloc[i] =  picked_index
             else:
                 picked_champion_info = all_json[-1]
+                print(picked_champion_info)
                 merged_large["{}_champion_levels".format(lane_team)].iloc[i] = picked_champion_info["championLevel"]
                 merged_large["{}_champion_points".format(lane_team)].iloc[i] = picked_champion_info["championPoints"]
                 merged_large["{}_tokens".format(lane_team)].iloc[i] = picked_champion_info["tokensEarned"]
@@ -901,158 +842,39 @@ def get_top10avg_champ_detail_info(df,main_api_key,  api_key_list, lane_team):
             merged_large["{}_avg_champion_points".format(lane_team)].iloc[i] = tempo_avg_champion_points
             merged_large["{}_avg_tokens".format(lane_team)].iloc[i] = tempo_avg_tokens
             merged_large["{}_avg_lastplaytime".format(lane_team)].iloc[i] = tempo_avg_lastPlaytime
-        except:
-            print(i)
-            print("unknown error occured")
+        except Exception as e:
+            print("error : {}".format(e))
+            print("unknown error occured at " )
             continue
     return merged_large
 
-
-def champion_avg_detail_for_all_lanes(df,api_key_list,lanes):
+def champion_avg_detail_for_all_lanes(df,main_api_key,  api_key_list,lanes):
     #all_lanes = ["TOP100","JUNGLE100","MID100","ADC100","SUPPORT100","TOP200","JUNGLE200","MID200","ADC200","SUPPORT200"]
     merged_added = df.copy()
     for lane in all_lanes:
-        merged_added = get_top10avg_champ_detail_info(merged_added, api_key_list,lane)
+        merged_added = get_top10avg_champ_detail_info(merged_added, main_api_key,  api_key_list,lane)
     return merged_added
 
--------------------------------------
-all_champs_list = merged_large["{}_champ".format(lane_team)].tolist()
-
-all_champs_list[i]
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  last function !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-path = "https://kr.api.riotgames.com/lol/match/v4/matchlists/by-account/{}?api_key={}&champion={}&endIndex=5"
-
-
-api_url  = path.format(merged_large["{}_accountId".format(lane_team)].iloc[i], main_api_key,all_champs_list[i] )
-
-r = requests.get(api_url)
-r.json()
-
-tempo_path = "https://kr.api.riotgames.com/lol/summoner/v4/summoners/by-name/{}?api_key={}"
-tempo_
-
-all_accountId_list = merged_large["{}_accountId".format(lane_team)].tolist()
-all_accountId_list
-all_champs_list = merged_large["{}_champ".format(lane_team)].tolist()
-all_champs_list
-api_url_list = list(map(lambda accountId, champion: path.format(accountId,main_api_key,champion),all_accountId_list,all_champs_list))
-api_url_list
-
-current_championId = all_champs_list[i]
-current_championId
-api_url = api_url_list[i]
-r= requests.get(api_url)
-r.json()
-
-tempo_path = "https://kr.api.riotgames.com/lol/summoner/v4/summoners/by-name/{}?api_key={}"
-tempo_url = tempo_path.format(merged_large["{}_sumName".format(lane_team)].iloc[i] , api_machine.switch()  )
-tempo_r = requests.get(tempo_url)
-tempo_account = tempo_r.json()["accountId"]
-api_url  = path.format(tempo_account , api_machine.current_api_key,  current_championId )
-testing_r = requests.get(api_url)
-testing_r.json()
-
-r.json()
-r = requests.get(api_url)
-r.json()
-merged_large.iloc[0,:]
-tempo_account
-current_dict = r.json()
-current_dict
-
-current_championId = all_champs_list[i]
-api_url = api_url_list[i]
-r= requests.get(api_url)
-r.json()
-
-current_dict = r.json()
-current_dict
-
-tempo_gameids = list(map(lambda x: x["gameId"], current_dict["matches"] ))
-tempo_gameids
-api_key_list
-api_url
-api_url = api_url_list[i]
-r= requests.get(api_url)
-r.json()
-new_path = "https://kr.api.riotgames.com/lol/match/v4/matches/{}?api_key={}"
-main_api_url = new.path()
-new_api_url = new_path.format(each_game, api_machine.switch())
-sr = requests.get(api_url)
-sr.json()
-each_game = tempo_gameids[0]
-new_api_url = new_path.format(each_game, api_machine.switch())
-sr = requests.get(new_api_url)
-sr.json()
 
 
 
-ma_api_url = new_path.format(each_game, main_api_key )
-ma = requests.get(ma_api_url )
-ma.json()
-
-new_api_url = new_path.format(each_game, api_machine.switch())
-new_r = requests.get(new_api_url)
-new_r.json()
-all_apis
-all_apis = api_key_list
-all_apis.append(main_api_key)
-all_api_machine = api_box(all_apis)
-
-
-new_api_url = new_path.format(each_game, all_api_machine.switch())
-new_r = requests.get(new_api_url)
-new_r.json()
-new_current_data = new_r.json()
-current_championId
-
-
-game_info =  new_current_data["participants"]
-participatn_index = list(map(lambda x: x["championId"] , game_info )).index(current_championId)
-
-new_current_data
-
-participatn_index
-game_info[participatn_index]
-
-
-a = -3
-while a < 5:
-    print(a)
-    a = a+ 1
-    try:
-        b = 5 / a
-        print(b)
-    except:
-        continue
-
-
-merged_large.columns
 
 
 
-api_key_list = [api_key1 , api_key2]
-lane_team
-merged_large.shape
-import datetime
-a = datetime.datetime.now()
-merged_testing = very_detail_champ_info_and_history(merged_large, main_api_key , api_key_list , lane_team)
-b = datetime.datetime.now()
-print(b-a)
-
-c = b -a
-c +c
-43 / 12
+merged_checking= champion_avg_detail_for_all_lanes(merged_added , main_api_key , api_key_list , all_lanes)
 
 
-912 * 3 * 10 / 60 /60
+merged_checking
 
 
-np.zeros((5 )).mean()
 
-merged_testing
 
+
+
+
+
+
+merged_added
 def very_detail_champ_info_and_history(df , main_api_key, api_key_list, lane_team):
     merged_large = df.copy()
     api_machine = api_box(api_key_list)
@@ -1079,7 +901,6 @@ def very_detail_champ_info_and_history(df , main_api_key, api_key_list, lane_tea
     merged_large["{}_wards_placed".format(lane_team)] = None
     merged_large["{}_wards_killed".format(lane_team)] = None
     merged_large["{}_damage_taken".format(lane_team)] = None
-
 
 
 
@@ -1227,25 +1048,6 @@ def very_detail_champ_info_and_history(df , main_api_key, api_key_list, lane_tea
     return merged_large
 
 
-merged_large.columns
-
-
-participatn_index
-participant_index = list(map(lambda x: x["championId"] , game_info )).index(current_championId)
-new_api_url = new_path.format(each_game , all_api_machine.switch())
-new_r = requests.get(new_api_url)
-new_current_data = new_r.json()
-game_info =  new_current_data["participants"]
-
-float(game_info[participant_index]["stats"]["win"])
-
-sum([1,3]) /3
-
-float(True)
-
-game_info[participant_index]["stats"]
-float(game_info[participant_index]["stats"]["totalDamageTaken"] / game_duration)
-float(game_info[participant_index]["stats"]["visionScore"])
 
 class api_box:
     def __init__(self, api_key_list):
@@ -1260,11 +1062,6 @@ class api_box:
         return self.current_api_key
     def returning(self):
         return self.current_api_key
-
-new_apis = api_box(api_key_list)
-new_apis.switch()
-
-
 
 
 def very_detail_champ_info_and_history_for_all_lanes(df,api_key_list,lanes):
@@ -1291,9 +1088,6 @@ def del_nan_merge_large(df):
     merged_large = merged_large.dropna()
     merged_large = coerce_df_columns_to_numeric(merged_large)
     return merged_large
-
------------------------------------------
-###########################################
 
 
 
