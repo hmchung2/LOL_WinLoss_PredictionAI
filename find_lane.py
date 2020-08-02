@@ -112,23 +112,23 @@ def df_summoner_accountid(league_df,api_key):
 
             while r.status_code == 429:
                 time.sleep(5)
-                print('time to wait')
+                #print('time to wait')
                 sohwan = 'https://kr.api.riotgames.com/lol/summoner/v4/summoners/by-name/' + league_df['summonerName'].iloc[i] + '?api_key=' + api_key
                 r = requests.get(sohwan)
 
             account_id = r.json()['accountId']
 
             league_df.iloc[i, -1] = account_id
-            print('going good')
+            #print('going good')
         except:
-            print('not ok')
+            #print('not ok')
             pass
-    print('done')
+    #print('done')
     return league_df
 
 
 
-
+#
 ############################## not interchangeable ##########################################
 def accountID_to_matchINFO(league_df3, endIndex , api_key):
     # need account_id column in the data frame
@@ -143,15 +143,15 @@ def accountID_to_matchINFO(league_df3, endIndex , api_key):
 
             while r.status_code == 429:
                 time.sleep(5)
-                print('time to wait')
+                #print('time to wait')
                 match0 = 'https://kr.api.riotgames.com/lol/match/v4/matchlists/by-account/' + league_df3['account_id'].iloc[i]  +'?season=' + season +'&endIndex='+ EI+'&api_key=' + api_key
                 r = requests.get(match0)
 
             match_info_df = pd.concat([match_info_df, pd.DataFrame(r.json()['matches'])])
-            print('going good')
+            #print('going good')
         except:
-            print('not going good')
-            print(i)
+            #print('not going good')
+            #print(i)
     print("done")
     return match_info_df
 
@@ -167,20 +167,20 @@ def game_id_to_match_detail(match_info_df2, api_key):
 
             while r.status_code == 429:
                 time.sleep(2)
-                print('time to wait')
+                #print('time to wait')
                 #time.sleep를 꼭 해줘야함 안그러면 request 잦은 사용으로 블랙리스트가 됨
                 api_url='https://kr.api.riotgames.com/lol/match/v4/matches/' + str(match_info_df2['gameId'].iloc[i]) + '?api_key=' + api_key
                 r = requests.get(api_url)
 
             mat = pd.DataFrame(list(r.json().values()), index=list(r.json().keys())).T
             match_fin = pd.concat([match_fin,mat])
-            print('going well')
+            #print('going well')
         except:
-            print('not going well')
+            #print('not going well')
             pass
     match_fin2 = match_fin.reset_index()
     del match_fin2['index']
-    print('done')
+    #print('done')
     return match_fin2
 
 
@@ -480,7 +480,7 @@ def get_win_loss_col(df):
         return merged_info
     else:
         print("manually throwing an error")
-        5/0
+        #5/0
 
 
 
@@ -623,7 +623,7 @@ def get_summonerLevel(df, main_api_key, api_key_list ,lane_team):
             api_url = path.format(merged_large["{}_accountId".format(lane_team)].iloc[i] , main_api_key )
             r = requests.get(api_url)
             while r.status_code == 429:
-                print("entering")
+                #print("entering")
                 api_url = temp_path.format(merged_large["{}_sumName".format(lane_team)].iloc[i] ,  api_machine.switch() )
                 r = requests.get(api_url)
                 time.sleep(1)
@@ -655,14 +655,14 @@ def get_win_los_rate_info(df, main_api_key, api_key_list, lane_team):
     api_urls = list(map(lambda sum: path.format(sum,main_api_key ), merged_large["{}_sumID".format(lane_team)]  ))
     if len(api_urls) != len(merged_large):
         print("creted api urls do not have the same length as the df, aborting and causing an error on purpose")
-        5 / 0
+        #5 / 0
     for i in tqdm(range(len(api_urls))):
         time.sleep(1)
         try:
             api_url = api_urls[i]
             r = requests.get(api_url)
             while r.status_code == 429:
-                print("entering")
+                #print("entering")
                 tempo_api_url = tempo_path.format(merged_large["{}_sumName".format(lane_team)].iloc[i] , api_machine.switch())
                 tempo_r = requests.get(tempo_api_url)
                 tempo_id = tempo_r.json()["id"]
@@ -725,7 +725,7 @@ def get_top10avg_champ_detail_info(df,main_api_key,  api_key_list, lane_team):
 
     if len(api_urls_list) != len(merged_large) or len(picked_champion_ids) != len(merged_large):
         print("created api urls do not have the same length as the df, aborting and causing an error on purpose")
-        5 / 0
+        #5 / 0
 
     for i in tqdm(range(len(api_urls_list))):
         try:
@@ -767,7 +767,7 @@ def get_top10avg_champ_detail_info(df,main_api_key,  api_key_list, lane_team):
                 merged_large["{}_ranking_favorite_list".format(lane_team)].iloc[i] =  picked_index
             else:
                 picked_champion_info = all_json[-1]
-                print(picked_champion_info)
+                #print(picked_champion_info)
                 merged_large["{}_champion_levels".format(lane_team)].iloc[i] = picked_champion_info["championLevel"]
                 merged_large["{}_champion_points".format(lane_team)].iloc[i] = picked_champion_info["championPoints"]
                 merged_large["{}_tokens".format(lane_team)].iloc[i] = picked_champion_info["tokensEarned"]
@@ -835,7 +835,7 @@ def very_detail_champ_info_and_history(df , main_api_key, api_key_list, lane_tea
     api_url_list = list(map(lambda accountId, champion: path.format(accountId,main_api_key,champion),all_accountId_list,all_champs_list))
     if len(api_url_list) != len(merged_large):
         print("lengths are not the same aborting")
-        5/ 0
+        #5/ 0
     for i in tqdm(range(len(api_url_list))):
         try:
 
