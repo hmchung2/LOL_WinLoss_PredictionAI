@@ -1055,7 +1055,7 @@ if __name__ == '__main__':
     match_info_df =  accountID_to_matchINFO(league_df3 = gm_df, endIndex=1, api_key= main_api_key)
     match_info_df = match_info_df.reset_index(drop =True )
     match_df = game_id_to_match_detail(match_info_df, main_api_key)
-    match_df  = modifiy_match_df_original(match_df)
+    #match_df  = modifiy_match_df_original(match_df)
     b = datetime.datetime.now()
     print(b - a )
 
