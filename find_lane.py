@@ -150,6 +150,7 @@ def accountID_to_matchINFO(league_df3, endIndex , api_key):
             match_info_df = pd.concat([match_info_df, pd.DataFrame(r.json()['matches'])])
             #print('going good')
         except:
+            continue
             #print('not going good')
             #print(i)
     print("done")
@@ -1051,7 +1052,7 @@ if __name__ == '__main__':
     #
     gm_df = show_grandmaster_info(main_api_key  )
     gm_df = df_summoner_accountid(gm_df, main_api_key )
-    match_info_df =  accountID_to_matchINFO(league_df3 = league_df, endIndex=5, api_key= main_api_key)
+    match_info_df =  accountID_to_matchINFO(league_df3 = gm_df, endIndex=1, api_key= main_api_key)
     match_info_df = match_info_df.reset_index(drop =True )
     match_df = game_id_to_match_detail(match_info_df, main_api_key)
     match_df  = modifiy_match_df_original(match_df)
@@ -1085,11 +1086,11 @@ if __name__ == '__main__':
     print(h-g)
     merged_checking.to_csv("middle_point_saving3.csv")
 
-    i = datetime.datetime.now()
+    ii = datetime.datetime.now()
     merged_final = very_detail_champ_info_and_history_for_all_lanes(merged_checking, main_api_key, api_key_list, all_lanes )
     final_final = final_final_modify(merged_final)
     j = datetime.datetime.now()
-    print(j-i)
+    print(j-ii)
     final_final.to_csv("final_final.csv",)
 
     host = "192.168.0.181"
