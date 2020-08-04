@@ -17,6 +17,8 @@ import api_config
 from sqlalchemy import create_engine, types, select
 from sqlalchemy import *
 import pymysql
+from packaging import version
+
 pymysql.install_as_MySQLdb()
 
 
@@ -36,7 +38,7 @@ class connect_sql:
         self.engine = engine
         self.conn = engine.connect()
     def insert_df(self, df, table_name):                                                   # 데이터프레임 통채로 데이터베이스에 삽입
-        df.to_sql(table_name , con = self.engine, index = False, if_exists ='append', chunksize = 20 )
+        df.to_sql(table_name , con = self.engine, index = False, if_exists ='append', chunksize = 50 )
 
 
 
@@ -66,6 +68,7 @@ def get_champion_id_by_current_version(key, version):
     # 이번 분석에서 필요없는 데이터 제거
     champ_df = champ_df.drop(['version', 'image', 'info', 'stats', 'blurb'], axis=1)
     return champ_df
+
 
 
 
@@ -110,7 +113,7 @@ def df_summoner_accountid(league_df,api_key):
             sohwan = 'https://kr.api.riotgames.com/lol/summoner/v4/summoners/by-name/' + league_df['summonerName'].iloc[i] + '?api_key=' + api_key
             r = requests.get(sohwan)
 
-            while r.status_code == 429:
+            while r.status_code == 429 or r.status_code == 504:
                 time.sleep(5)
                 #print('time to wait')
                 sohwan = 'https://kr.api.riotgames.com/lol/summoner/v4/summoners/by-name/' + league_df['summonerName'].iloc[i] + '?api_key=' + api_key
@@ -166,7 +169,7 @@ def game_id_to_match_detail(match_info_df2, api_key):
             api_url='https://kr.api.riotgames.com/lol/match/v4/matches/' + str(match_info_df2['gameId'].iloc[i]) + '?api_key=' + api_key
             r = requests.get(api_url)
 
-            while r.status_code == 429:
+            while r.status_code == 429 or r.status_code == 504:
                 time.sleep(2)
                 #print('time to wait')
                 #time.sleep를 꼭 해줘야함 안그러면 request 잦은 사용으로 블랙리스트가 됨
@@ -186,11 +189,23 @@ def game_id_to_match_detail(match_info_df2, api_key):
 
 
 
+def find_new_version(df):
+    match_df = df.copy()
+    version_list = match_df["gameVersion"].unique().tolist()
+    version_list = [x  for x in version_list if type(x) == type('string')]
+
+    for n, i in enumerate(version_list):
+        version_list[n] = version.parse(i)
+    result = max(version_list)
+    return result.public
+
 
 
 # when running in module withou stopping
 def modifiy_match_df_original(df):
     match_df = df.copy()
+    #del match_df["status"]
+    match_df = match_df.dropna()
     match_df["gameId"] = list(map(lambda x: int(x), match_df["gameId"]))
     match_df["queueId"] = match_df["queueId"].map(lambda x : int(x))
     match_df["gameCreation"] = match_df["gameCreation"].map(lambda x : int(x))
@@ -203,39 +218,33 @@ def modifiy_match_df_original(df):
     match_df = match_df.loc[select_indices, :].reset_index(drop=True)
     return match_df
 
-def modfify_match_df(df):
-    match_df = df.copy()
-    match_df["gameId"] = list(map(lambda x: int(x), match_df["gameId"]))
-    match_df["queueId"] = match_df["queueId"].map(lambda x : int(x))
-    match_df["gameCreation"] = match_df["gameCreation"].map(lambda x : int(x))
-    match_df["seasonId"] = match_df["seasonId"].map(lambda x : int(x))
-    match_df["mapId"] = match_df["mapId"].map(lambda x : int(x))
-    match_df["gameDuration"] = match_df["gameDuration"].map(lambda x : int(x))
-
-    new_version = find_new_version(match_df)
-
-    # 정확한 통계를 위해 가장 최신의 버전과 클래식 게임에 대한 데이터만 가져오자
-    match_df = match_df.loc[(match_df['gameVersion']==new_version) & (match_df['gameMode']=='CLASSIC'), :]
-
-    # 그 중에서도 이번 분석에서는 소환사의 협곡 솔로 랭크와 팀 랭크 게임만 사용한다.
-    select_indices = (match_df['queueId']==420) | (match_df['queueId']==440)
-
-    match_df = match_df.loc[select_indices, :].reset_index(drop=True)
-
-    # DataFrame 내의 리스트들이 파일로 저장되었다가 불러지는 과정에서 문자로 인식됨
-    for column in ['teams', 'participants', 'participantIdentities']:
-        match_df[column] = match_df[column].map(lambda v: eval(v)) # 각 값에 대해 eval 함수를 적용
-    return match_df
 
 
-def find_new_version(df):
-    match_df = df.copy()
-    version_list = list(map(lambda x: x if type(x) == str else '0'  , Counter(match_df["gameVersion"]).keys()))
-    int_version = list(map(lambda x: int(x.replace(".","")) , version_list))
-    num = int_version.index(max(int_version))
-    result = version_list[num]
-    return result
 
+#
+# def modfify_match_df(df):
+#     match_df = df.copy()
+#     match_df["gameId"] = list(map(lambda x: int(x), match_df["gameId"]))
+#     match_df["queueId"] = match_df["queueId"].map(lambda x : int(x))
+#     match_df["gameCreation"] = match_df["gameCreation"].map(lambda x : int(x))
+#     match_df["seasonId"] = match_df["seasonId"].map(lambda x : int(x))
+#     match_df["mapId"] = match_df["mapId"].map(lambda x : int(x))
+#     match_df["gameDuration"] = match_df["gameDuration"].map(lambda x : int(x))
+#
+#     new_version = find_new_version(match_df)
+#
+#     # 정확한 통계를 위해 가장 최신의 버전과 클래식 게임에 대한 데이터만 가져오자
+#     match_df = match_df.loc[(match_df['gameVersion']==new_version) & (match_df['gameMode']=='CLASSIC'), :]
+#
+#     # 그 중에서도 이번 분석에서는 소환사의 협곡 솔로 랭크와 팀 랭크 게임만 사용한다.
+#     select_indices = (match_df['queueId']==420) | (match_df['queueId']==440)
+#
+#     match_df = match_df.loc[select_indices, :].reset_index(drop=True)
+#
+#     # DataFrame 내의 리스트들이 파일로 저장되었다가 불러지는 과정에서 문자로 인식됨
+#     for column in ['teams', 'participants', 'participantIdentities']:
+#         match_df[column] = match_df[column].map(lambda v: eval(v)) # 각 값에 대해 eval 함수를 적용
+#     return match_df
 
 
 class api_box:
@@ -256,14 +265,23 @@ class api_box:
 # this one works with different apis
 # 각 타임라인에 찍힌 위치 정보가 필요한데, match-timelines 데이터에 모여있다.
 # 그래서 이 데이터를 가져와야한다.
-def get_time_line_list(df, api_key_list):
+def get_time_line_list(df,main_api_key, api_key_list):
     match_df = df.copy()
     match_timeline_list = []
+    api_key_list.append(main_api_key)
     api_machine = api_box(api_key_list)
     for game_id in tqdm(match_df['gameId']): # 각 게임 아이디마다 요청
         api_url = 'https://kr.api.riotgames.com/lol/match/v4/timelines/by-match/{}?api_key={}'.format(game_id , api_machine.current_api_key)
         r = requests.get(api_url)
-        while r.status_code!=200: # 요청 제한 또는 오류로 인해 정상적으로 받아오지 않는 상태라면, 3초 간 시간을 지연
+        count = 0
+        while r.status_code == 429 or r.status_code == 504:
+            if r.status_code == 504:
+                print("gateaway timeout")
+                count = count + 1
+                if count == 150:
+                    break
+
+             # 요청 제한 또는 오류로 인해 정상적으로 받아오지 않는 상태라면, 3초 간 시간을 지연
             time.sleep(3)
             api_url = 'https://kr.api.riotgames.com/lol/match/v4/timelines/by-match/{}?api_key={}'.format(game_id , api_machine.switch())
             r = requests.get(api_url)
@@ -283,6 +301,43 @@ def get_time_line_list(df, api_key_list):
     return match_timeline_list
 
 
+def participants_for_lanes(match, timeline):
+    match_df = match.copy()
+    match_timeline_list = timeline.copy()
+    lane_calculated = pd.DataFrame()
+    for k in tqdm(range(len(match_timeline_list)  ) ):              #len(match_timeline_list)
+        game_id = match_timeline_list[k]["gameId"][0]
+        if match_df.loc[match_df["gameId"] == game_id , "gameDuration"].tolist()[0] < 600: continue
+        cur_timeline = match_timeline_list[k].copy()                  ######## will modify
+        cur_timeline['jungleMinionsKilled'] = cur_timeline['jungleMinionsKilled'].astype('float64')
+        cur_timeline['minionsKilled'] = cur_timeline['minionsKilled'].astype('float64')
+        # 타임스탬프는 op.gg가 나타내는 아이템 타임스탬프와 비교 결과, 타임스탬프 값의 1000 단위가 1초인 것을 파악함
+        cur_timeline['timestamp'] = cur_timeline['timestamp'] / (1000*60)  # 타임스탬프 값을 분 단위로 변환
+        condition = (cur_timeline['timestamp'] > 2) & (cur_timeline['timestamp'] < 15)     # 15분 이상 : 라인전을 끝내고 다른 라인으로 이동할 수 있음
+        cur_timeline = cur_timeline.loc[condition].copy()
+        cur_timeline['x'], cur_timeline['y'] = MapScaler(cur_timeline)
+        player_spells = [(data['spell1Id'], data['spell2Id'])for data in match_df.loc[match_df["gameId"] == game_id, "participants" ].tolist()[0] ]  # 스펠 확인
+        player_spells = np.array(player_spells)
+        lane = {}
+        team = 100
+        for i in range(1, 11, 5):  # 라인 계산
+            jungle_participant,support_participant,jungle_index,support_index = SupJugPredict(cur_timeline, player_spells, i)
+            lane["JUNGLE_{}".format(str(team) )] = jungle_participant
+            for j in range(i, i+5):
+                if str(j) == jungle_index:
+                    continue
+                cur_player = cur_timeline.loc[str(j)].copy()
+                tempo_lane, _ = LanePredict(cur_player, support_index==str(j), jungle_index)
+                lane[tempo_lane+"_{}".format(str(team))] = cur_player["participantId"].tolist()[0]
+            team = team + 100
+
+        lane['gameId'] = game_id
+        lane = pd.Series(lane)
+        if lane.value_counts().max() > 1: # 각 게임에 한 라인이 2명 이상이면 계산 착오로 판단하여 데이터 삭제
+            print("{}번째 계산이 잘못되었습니다.".format(str(match_df["gameID"][k] ) ))
+            continue
+        lane_calculated = pd.concat([lane_calculated, pd.Series(lane)], axis=1, sort=False)
+    return lane_calculated.T
 
 
 # f = open('MatchTimelineData.pickle', 'wb') # 리스트 안의 데이터프레임 형태이므로 바이너리 코드로 저장하기 위함임
@@ -375,44 +430,12 @@ def LanePredict(data, support_bool=False, jungle_bool=True):
     return max(lane, key=lane.get), lane
 
 
-# 각 게임 마다 누가 어느 라인을 맡았는지 알아주는 데이터프레임 생성
-def participants_for_lanes(match, timeline):
-    match_df = match.copy()
-    match_timeline_list = timeline.copy()
-    lane_calculated = pd.DataFrame()
-    for k in tqdm(range(len(match_timeline_list)  ) ):              #len(match_timeline_list)
-        game_id = match_timeline_list[k]["gameId"][0]
-        if match_df.loc[match_df["gameId"] == game_id , "gameDuration"].tolist()[0] < 600: continue
-        cur_timeline = match_timeline_list[k].copy()                  ######## will modify
-        cur_timeline['jungleMinionsKilled'] = cur_timeline['jungleMinionsKilled'].astype('float64')
-        cur_timeline['minionsKilled'] = cur_timeline['minionsKilled'].astype('float64')
-        # 타임스탬프는 op.gg가 나타내는 아이템 타임스탬프와 비교 결과, 타임스탬프 값의 1000 단위가 1초인 것을 파악함
-        cur_timeline['timestamp'] = cur_timeline['timestamp'] / (1000*60)  # 타임스탬프 값을 분 단위로 변환
-        condition = (cur_timeline['timestamp'] > 2) & (cur_timeline['timestamp'] < 15)     # 15분 이상 : 라인전을 끝내고 다른 라인으로 이동할 수 있음
-        cur_timeline = cur_timeline.loc[condition].copy()
-        cur_timeline['x'], cur_timeline['y'] = MapScaler(cur_timeline)
-        player_spells = [(data['spell1Id'], data['spell2Id'])for data in match_df.loc[match_df["gameId"] == game_id, "participants" ].tolist()[0] ]  # 스펠 확인
-        player_spells = np.array(player_spells)
-        lane = {}
-        team = 100
-        for i in range(1, 11, 5):  # 라인 계산
-            jungle_participant,support_participant,jungle_index,support_index = SupJugPredict(cur_timeline, player_spells, i)
-            lane["JUNGLE_{}".format(str(team))] = jungle_participant
-            for j in range(i, i+5):
-                if str(j) == jungle_index:
-                    continue
-                cur_player = cur_timeline.loc[str(j)].copy()
-                tempo_lane, _ = LanePredict(cur_player, support_index==str(j), jungle_index)
-                lane[tempo_lane+"_{}".format(str(team))] = cur_player["participantId"].tolist()[0]
-            team = team + 100
 
-        lane['gameId'] = game_id
-        lane = pd.Series(lane)
-        if lane.value_counts().max() > 1: # 각 게임에 한 라인이 2명 이상이면 계산 착오로 판단하여 데이터 삭제
-            print("{}번째 계산이 잘못되었습니다.".format(str(match_df["gameID"][k] ) ))
-            continue
-        lane_calculated = pd.concat([lane_calculated, pd.Series(lane)], axis=1, sort=False)
-    return lane_calculated.T
+
+
+
+# 각 게임 마다 누가 어느 라인을 맡았는지 알아주는 데이터프레임 생성
+
 
 def my_load_match_df():
     match_df = pd.read_csv("match_df.csv", index_col = 0)
@@ -580,8 +603,6 @@ def del_nan_merge_large(df):
     return merged_large
 
 
-
-
 # failed just sum of levels in two
 #one = path +"lol/champion-mastery/v4/scores/by-summoner/{}?api_key={}".format(encryptedSummonerId,api_key)
 
@@ -611,8 +632,9 @@ def del_nan_merge_large(df):
 # same as 5 but just use name instead
 #six = path +"lol/summoner/v4/summoners/by-name/{}?api_key={}".format(summonerName,api_key)
 
-def get_summonerLevel(df, main_api_key, api_key_list ,lane_team):
+def get_summonerLevel(df, main_api_key, api_key_listing ,lane_team):
     merged_large = df.copy()
+    api_key_list = api_key_listing.copy()
     api_key_list.append(main_api_key)
     api_machine = api_box(api_key_list)
     path = "https://kr.api.riotgames.com/lol/summoner/v4/summoners/by-account/{}?api_key={}"
@@ -620,24 +642,46 @@ def get_summonerLevel(df, main_api_key, api_key_list ,lane_team):
     merged_large["{}_summonerLevel".format(lane_team)] = None
     for i in tqdm(range(len(merged_large  ))):
         try:
-            time.sleep(1)
+            #time.sleep(1)
             api_url = path.format(merged_large["{}_accountId".format(lane_team)].iloc[i] , main_api_key )
             r = requests.get(api_url)
-            while r.status_code == 429:
-                #print("entering")
-                api_url = temp_path.format(merged_large["{}_sumName".format(lane_team)].iloc[i] ,  api_machine.switch() )
-                r = requests.get(api_url)
-                time.sleep(1)
+            trying = True
+            count = 0
+            while r.status_code == 429 or r.status_code ==504:
+                if trying:
+                    try:
+                        if r.status_Code == 504:
+                            print("gateaway timeout")
+                            count = count + 1
+                            if count == 150:
+                                break
 
+                        api_url = temp_path.format(merged_large["{}_sumName".format(lane_team)].iloc[i] ,  api_machine.switch() )
+                        temp_r = requests.get(api_url)
+                        if temp_r.status_code == 404:
+                            trying = False
+                            continue
+                        r = temp_r
+
+                    except Exception as e:
+                        print("an error_here {}".format(e))
+                        trying = False
+                        continue
+                else:
+                    time.sleep(1)
+                    api_url = path.format(merged_large["{}_accountId".format(lane_team)].iloc[i] , main_api_key )
+                    r = requests.get(api_url)
             merged_large["{}_summonerLevel".format(lane_team)].iloc[i] = r.json()["summonerLevel"]
+
         except Exception as e:
-            print("an error occured {}".format(e))
-            print(i)
+                print("an error occured {}".format(e))
+                print(i)
     return merged_large
 
 
-def get_summonerLevel_for_all_lanes(df, main_api_key, api_key_list ,all_lanes):
+def get_summonerLevel_for_all_lanes(df, main_api_key, api_key_listing ,all_lanes):
     merged_added = df.copy()
+    api_key_list = api_key_listing.copy()
     #all_lanes = ["TOP100","JUNGLE100","MID100","ADC100","SUPPORT100","TOP200","JUNGLE200","MID200","ADC200","SUPPORT200"]
     for lane in all_lanes:
         print(lane)
@@ -658,20 +702,51 @@ def get_win_los_rate_info(df, main_api_key, api_key_list, lane_team):
         print("creted api urls do not have the same length as the df, aborting and causing an error on purpose")
         #5 / 0
     for i in tqdm(range(len(api_urls))):
-        time.sleep(1)
         try:
             api_url = api_urls[i]
             r = requests.get(api_url)
-            while r.status_code == 429:
-                #print("entering")
-                tempo_api_url = tempo_path.format(merged_large["{}_sumName".format(lane_team)].iloc[i] , api_machine.switch())
-                tempo_r = requests.get(tempo_api_url)
-                tempo_id = tempo_r.json()["id"]
-                api_url = path.format(tempo_id, api_machine.current_api_key)
-                r = requests.get(api_url)
+            trying = True
+            count = 0
+            count2  = 0
+            while r.status_code == 429 or r.status_code == 504:
+
+                if r.status_code == 504:
+                    print("gateaway timeout")
+                    count = count + 1
+                    if count == 150:
+                        break
+                if trying:
+                    tempo_api_url = tempo_path.format(merged_large["{}_sumName".format(lane_team)].iloc[i] , api_machine.switch())
+                    tempo_r = requests.get(tempo_api_url)
+                    if tempo_r.status_code == 429 or tempo_r.status_code == 504:
+                        if tempo_r.status_code == 504:
+                            count2 = count2  + 1
+                            if count2 == 150:
+                                break
+                        continue
+                    if tempo_r.status_code == 404:
+                        trying = False
+                        continue
+                    try:
+                        tempo_id = tempo_r.json()["id"]
+                        api_url = path.format(tempo_id, api_machine.current_api_key)
+                        r = requests.get(api_url)
+                    except Exception as e:
+                        print("some error {}".format(e))
+                        trying = False
+                        continue
+
+                else:
+                    try:
+                        time.sleep(1)
+                        api_url = api_url = api_urls[i]
+                        r = requests.get(api_url)
+                    except Exception as e:
+                        pirnt("some kind of error {}".format(e))
+                        break
             temp_df[i] =  pd.Series(r.json()[0] )
-        except Exception as e:
-            print("an arror {}".format(e))
+        except:
+            print("an error {}".format(e))
             print(i)
             temp_df[i] = None
     temp_df = temp_df.T.loc[:,["tier","rank","wins","losses","veteran","inactive","freshBlood","hotStreak"]]
@@ -698,15 +773,9 @@ def get_win_los_rate_info_all_lanes(df, main_api_key, api_key_list,lanes):
 
 
 
-
-
-
-
-
-
-
-def get_top10avg_champ_detail_info(df,main_api_key,  api_key_list, lane_team):
+def get_top10avg_champ_detail_info(df,main_api_key,  api_key_listing, lane_team):
     merged_large = df.copy()
+    api_key_list = api_key_listing.copy()
     api_machine  = api_box(api_key_list)
     path = 'https://kr.api.riotgames.com/lol/champion-mastery/v4/champion-masteries/by-summoner/{}?api_key={}'
     tempo_path = "https://kr.api.riotgames.com/lol/summoner/v4/summoners/by-name/{}?api_key={}"
@@ -730,29 +799,52 @@ def get_top10avg_champ_detail_info(df,main_api_key,  api_key_list, lane_team):
 
     for i in tqdm(range(len(api_urls_list))):
         try:
-            time.sleep(1)
+
             api_url = api_urls_list[i]
             r= requests.get(api_url)
-
-            trials = 0
-            fked = 0
-            while r.status_code == 429:
-                trials = trials + 1
-                if trials == 70:
-                    print("trails reached 70")
-                    fked = 1
-                    r.status_code = 4200
+            trying = True
+            count = 0
+            count2 = 0
+            while r.status_code == 429 or r.status_code == 504 :
                 # try:
-                tempo_api_url = tempo_path.format(merged_large["{}_sumName".format(lane_team)].iloc[i] , api_machine.switch() )
-                tempo_r = requests.get(tempo_api_url)
-                tempo_id = tempo_r.json()["id"]
-                api_url = path.format(tempo_id, api_machine.current_api_key)
-                r  = requests.get(api_url)
-                # except:
-                    # continue
-                time.sleep(1)
-            if fked == 1:
-                continue
+                if r.status_code == 504:
+                    count = count + 1
+                    print("gateawaytimeout")
+                    if count == 150:
+                        break
+
+                if trying:
+                    tempo_api_url = tempo_path.format(merged_large["{}_sumName".format(lane_team)].iloc[i] , api_machine.switch() )
+                    tempo_r = requests.get(tempo_api_url)
+
+                    if tempo_r.status_code == 429 or tempo_r.status_code == 504:
+                        if tempo_r.status_code == 504:
+                            count2 = count2 + 1
+                            if count2 == 150:
+                                break
+
+                        continue
+
+                    if tempo_r.status_code == 404:
+                        trying = False
+                        continue
+                    try:
+                        tempo_id = tempo_r.json()["id"]
+                        api_url = path.format(tempo_id, api_machine.current_api_key)
+                        r  = requests.get(api_url)
+                    except Exception as e:
+                        print("something wrong : {}".format(e))
+                        print(tempo_r.json())
+                        trying = False
+                        continue
+
+                else:
+                    time.sleep(2)
+                    api_url = api_urls_list[i]
+                    r = requests.get(api_url)
+
+
+
             all_json = r.json()
             current_json = all_json[:5] ###actually top 5
             picked_id =  picked_champion_ids[i]
@@ -785,8 +877,7 @@ def get_top10avg_champ_detail_info(df,main_api_key,  api_key_list, lane_team):
             merged_large["{}_avg_tokens".format(lane_team)].iloc[i] = tempo_avg_tokens
             merged_large["{}_avg_lastplaytime".format(lane_team)].iloc[i] = tempo_avg_lastPlaytime
         except Exception as e:
-            print("error : {}".format(e))
-            print("unknown error occured at " )
+            print("error : {} at {}".format(e ,i) )
             continue
     return merged_large
 
@@ -794,21 +885,20 @@ def champion_avg_detail_for_all_lanes(df,main_api_key,  api_key_list,lanes):
     #all_lanes = ["TOP100","JUNGLE100","MID100","ADC100","SUPPORT100","TOP200","JUNGLE200","MID200","ADC200","SUPPORT200"]
     merged_added = df.copy()
     for lane in all_lanes:
+        print(lane)
         merged_added = get_top10avg_champ_detail_info(merged_added, main_api_key,  api_key_list,lane)
     return merged_added
 
 
 
-
-
-
-def very_detail_champ_info_and_history(df , main_api_key, api_key_list, lane_team):
+def very_detail_champ_info_and_history(df , main_api_key, api_key_listing, lane_team):
     merged_large = df.copy()
+    api_key_list = api_key_listing.copy()
     api_machine = api_box(api_key_list)
-    all_apis = api_key_list
+    all_apis = api_key_list.copy()
     all_apis.append(main_api_key)
     all_api_machine = api_box(all_apis)
-    path = "https://kr.api.riotgames.com/lol/match/v4/matchlists/by-account/{}?api_key={}&champion={}&endIndex=5"
+    path = "https://kr.api.riotgames.com/lol/match/v4/matchlists/by-account/{}?api_key={}&champion={}&endIndex=3"
     tempo_path = "https://kr.api.riotgames.com/lol/summoner/v4/summoners/by-name/{}?api_key={}"
     new_path = "https://kr.api.riotgames.com/lol/match/v4/matches/{}?api_key={}"
 
@@ -844,27 +934,57 @@ def very_detail_champ_info_and_history(df , main_api_key, api_key_list, lane_tea
             current_championId = all_champs_list[i]
             api_url = api_url_list[i]
             r= requests.get(api_url)
-            if r.status_code == 404:
-                merged_large["{}_total_champion_games".format(lane_team)].iloc[i] = 0
-            trials = 0
-            fked  = 0
-            while r.status_code == 429:
-                trials = trials + 1
-                if trials == 70:
-                    fked = 1
-                    r.status_code = 4200
-                tempo_url = tempo_path.format(merged_large["{}_sumName".format(lane_team)].iloc[i] , api_machine.switch() )
-                try:
-                    tempo_r = requests.get(tempo_url)
-                    tempo_account = tempo_r.json()["accountId"]
-                except Exception as e:
-                    print("error 1 {}".format(e))
-                    continue
-                api_url  = path.format(tempo_account , api_machine.current_api_key,  current_championId )
-                r = requests.get(api_url)
+            trying = True
+            count = 0
+            count2 = 0
+            while r.status_code == 429 or r.status_code == 504:
+
+                if r.status_code == 504:
+                    time.sleep(1)
+                    print("gateawaytimeout")
+                    count  = count + 1
+                    if count == 150:
+                        break
+
+                if trying:
+                    tempo_url = tempo_path.format(merged_large["{}_sumName".format(lane_team)].iloc[i] , api_machine.switch() )
+                    try:
+                        tempo_r = requests.get(tempo_url)
+                        if tempo_r.status_code == 429 or tempo_r.status_code ==504:
+                            if temp_r.status_code == 504:
+                                time.sleep(1)
+                                print("gateway timeout in tempo")
+                                count2 = count2 + 1
+                                if count2 == 150:
+                                    break
+                            continue
+
+                    except Exception as e:
+                        print("error 1 {}".format(e))
+                        print("tempo_r : {}".format(tempo_r.status_code))
+                        trying = False
+                        continue
+                    if tempo_r.status_code == 404:
+                        trying = False
+                        print("tempo_r -> 404")
+                        continue
+                    try:
+                        tempo_account = tempo_r.json()["accountId"]
+                        api_url  = path.format(tempo_account , api_machine.current_api_key,  current_championId )
+                        r = requests.get(api_url)
+                    except Exception as e:
+                        print("error soemthing {}".format(e))
+                        print(tempo_r.json())
+                        trying  = False
+                        continue
+                else:
+                    time.sleep(3)
+                    api_url = api_url_list[i]
+                    r = requests.get(api_url)
+
+
             if  r.status_code == 404:
                 merged_large["{}_total_champion_games".format(lane_team)].iloc[i] = 0
-            if fked == 1:
                 continue
 
                 #time.sleep(1)
@@ -892,19 +1012,22 @@ def very_detail_champ_info_and_history(df , main_api_key, api_key_list, lane_tea
             wards_killed = []
             damage_taken = []
 
-
             for each_game in tempo_gameids:
                 try:
                     #time.sleep(1)
                     new_api_url = new_path.format(each_game, all_api_machine.switch())
                     new_r = requests.get(new_api_url)
-                    trials = 0
-                    fked = 0
-                    while new_r.status_code == 429:
-                        trials = trials + 1
-                        if trials == 70:
-                            fked = 1
-                            new_r.status_code = 4200
+                    count = 0
+                    while new_r.status_code == 429 or new_r.status_code == 504:
+                        ##
+                        if new_r.status_code == 504:
+                            time.sleep(1)
+                            print("gateawaytimeout")
+                            count = count + 1
+                            if count == 150:
+                                break
+                        ##
+                        time.sleep(1)
                         try:
                             new_api_url = new_path.format(each_game , all_api_machine.switch())
                             new_r = requests.get(new_api_url)
@@ -912,48 +1035,166 @@ def very_detail_champ_info_and_history(df , main_api_key, api_key_list, lane_tea
                             print("error 2 :{}".formate(e))
 
                         #time.sleep(1)
-                    if fked == 1:
-                        continue
                     new_current_data = new_r.json()
                     game_duration = float(new_current_data["gameDuration"] / 100)
                     game_info =  new_current_data["participants"]
                     participant_index = list(map(lambda x: x["championId"] , game_info )).index(current_championId)
 
-                    win_or_loss.append(float(game_info[participant_index]["stats"]["win"]))
-                    kills.append(float(game_info[participant_index]["stats"]["kills"]/ game_duration))
-                    deaths.append(float(game_info[participant_index]["stats"]["deaths"] / game_duration))
-                    assists.append(float(game_info[participant_index]["stats"]["assists"] / game_duration))
-                    total_damage.append(float(game_info[participant_index]["stats"]["totalDamageDealt"] / game_duration))
-                    damage_to_champ.append(float(game_info[participant_index]["stats"]["totalDamageDealtToChampions"] / game_duration))
-                    damage_to_objects.append(float(game_info[participant_index]["stats"]["damageDealtToObjectives"] / game_duration))
-                    champ_level.append(float(game_info[participant_index]["stats"]["champLevel"] / game_duration))
-                    gold_earned.append(float(game_info[participant_index]["stats"]["goldEarned"] / game_duration))
-                    vision_score.append(float(game_info[participant_index]["stats"]["visionScore"]))
-                    minionskilled.append(float(game_info[participant_index]["stats"]["totalMinionsKilled"] / game_duration))
-                    neutral_minions_killed.append(float(game_info[participant_index]["stats"]["neutralMinionsKilled"] / game_duration))
-                    wards_placed.append(float(game_info[participant_index]["stats"]["wardsPlaced"] / game_duration))
-                    wards_killed.append(float(game_info[participant_index]["stats"]["wardsKilled"] / game_duration))
-                    damage_taken.append(float(game_info[participant_index]["stats"]["totalDamageTaken"] / game_duration))
+                    if "win" in game_info[participant_index]["stats"].keys():
+                        win_or_loss.append(float(game_info[participant_index]["stats"]["win"]))
+                    else:
+                        print("no kills")
+
+                    if "kills" in game_info[participant_index]["stats"].keys():
+                        kills.append(float(game_info[participant_index]["stats"]["kills"]/ game_duration))
+                    else:
+                        print("no kills")
+
+                    if "deaths" in game_info[participant_index]["stats"].keys():
+                        deaths.append(float(game_info[participant_index]["stats"]["deaths"] / game_duration))
+                    else:
+                        print("no deaths")
+
+                    if "assists" in game_info[participant_index]["stats"].keys():
+                        assists.append(float(game_info[participant_index]["stats"]["assists"] / game_duration))
+                    else:
+                        print("no assists")
+
+                    if "totalDamageDealt" in game_info[participant_index]["stats"].keys():
+                        total_damage.append(float(game_info[participant_index]["stats"]["totalDamageDealt"] / game_duration))
+                    else:
+                        print("no totalDamageDealt")
+
+                    if "totalDamageDealtToChampions" in game_info[participant_index]["stats"].keys():
+                        damage_to_champ.append(float(game_info[participant_index]["stats"]["totalDamageDealtToChampions"] / game_duration))
+                    else:
+                        print("no totalDamageDealtToChampions")
+
+                    if "damageDealtToObjectives" in game_info[participant_index]["stats"].keys():
+                        damage_to_objects.append(float(game_info[participant_index]["stats"]["damageDealtToObjectives"] / game_duration))
+                    else:
+                        print("no damageDealtToObjectives")
+
+                    if "champLevel" in game_info[participant_index]["stats"].keys():
+                        champ_level.append(float(game_info[participant_index]["stats"]["champLevel"] / game_duration))
+                    else:
+                        print("no champLevel")
+
+                    if "goldEarned" in game_info[participant_index]["stats"].keys():
+                        gold_earned.append(float(game_info[participant_index]["stats"]["goldEarned"] / game_duration))
+                    else:
+                        print("no goldEarned")
+
+                    if "visionScore" in game_info[participant_index]["stats"].keys():
+                        vision_score.append(float(game_info[participant_index]["stats"]["visionScore"]))
+                    else:
+                        print("no visionScore")
+
+                    if "totalMinionsKilled" in game_info[participant_index]["stats"].keys():
+                        minionskilled.append(float(game_info[participant_index]["stats"]["totalMinionsKilled"] / game_duration))
+                    else:
+                        print(" no totalMinionsKilled")
+
+                    if "neutralMinionsKilled"  in game_info[participant_index]["stats"].keys():
+                        neutral_minions_killed.append(float(game_info[participant_index]["stats"]["neutralMinionsKilled"] / game_duration))
+                    else:
+                        print("no neutralMinionsKilled")
+
+                    if "wardsPlaced" in game_info[participant_index]["stats"].keys():
+                        wards_placed.append(float(game_info[participant_index]["stats"]["wardsPlaced"] / game_duration))
+                    else:
+                        print("no wards placed")
+
+                    if "wardsKilled" in game_info[participant_index]["stats"].keys():
+                        wards_killed.append(float(game_info[participant_index]["stats"]["wardsKilled"] / game_duration))
+                    else:
+                        print("no wards killed")
+
+                    if "totalDamageTaken" in  game_info[participant_index]["stats"].keys():
+                        damage_taken.append(float(game_info[participant_index]["stats"]["totalDamageTaken"] / game_duration))
+                    else:
+                        print("no totalDamageTaken")
 
                 except Exception as e:
                     print("error 3 : {}".format(e))
+                    print(new_r.status_code)
+                    print(new_current_data)
                     continue
 
-            avg_win_or_loss = sum(win_or_loss) / len(tempo_gameids)
-            avg_kills =  sum(kills) /len(tempo_gameids)
-            avg_deaths = sum(deaths)/len(tempo_gameids)
-            avg_assists = sum(assists)/len(tempo_gameids)
-            avg_total_damage = sum(total_damage)/len(tempo_gameids)
-            avg_damage_to_champ = sum(damage_to_champ)/len(tempo_gameids)
-            avg_damage_to_objects = sum(damage_to_objects)/len(tempo_gameids)
-            avg_champ_level = sum(champ_level)/len(tempo_gameids)
-            avg_gold_earned = sum(gold_earned)/len(tempo_gameids)
-            avg_vision_score = sum(vision_score)/len(tempo_gameids)
-            avg_minionskilled = sum(minionskilled)/len(tempo_gameids)
-            avg_neutral_minions_killed = sum(neutral_minions_killed)/len(tempo_gameids)
-            avg_wards_placed = sum(wards_placed)/len(tempo_gameids)
-            avg_wards_killed = sum(wards_killed)/len(tempo_gameids)
-            avg_damage_taken = sum(damage_taken)/len(tempo_gameids)
+            if len(win_or_loss) >= 1:
+                avg_win_or_loss = sum(win_or_loss) / len(win_or_loss)
+            else:
+                avg_win_or_loss = np.nan
+
+            if len(kills) >= 1:
+                avg_kills =  sum(kills) / len(kills)
+            else:
+                avg_kills = np.nan
+
+            if len(deaths) >= 1:
+                avg_deaths = sum(deaths) / len(deaths)
+            else:
+                avg_deaths = np.nan
+
+            if len(assists) >= 1:
+                avg_assists = sum(assists) / len(assists)
+            else:
+                avg_assists = np.nan
+
+            if len(total_damage) >= 1:
+                avg_total_damage = sum(total_damage) / len(total_damage)
+            else:
+                avg_total_damage = np.nan
+
+            if len(damage_to_champ) >= 1:
+                avg_damage_to_champ = sum(damage_to_champ) / len(damage_to_champ)
+            else:
+                avg_damage_to_champ = np.nan
+
+            if len(damage_to_objects) >= 1:
+                avg_damage_to_objects = sum(damage_to_objects) / len(damage_to_objects)
+            else:
+                avg_damage_to_objects = np.nan
+
+            if len(champ_level) >= 1:
+                avg_champ_level = sum(champ_level) / len(champ_level)
+            else:
+                avg_champ_level = np.nan
+
+            if len(gold_earned) >= 1:
+                avg_gold_earned = sum(gold_earned) / len(gold_earned)
+            else:
+                avg_gold_earned = np.nan
+
+            if len(vision_score) >= 1:
+                avg_vision_score = sum(vision_score) / len(vision_score)
+            else:
+                avg_vision_score = np.nan
+
+            if len(minionskilled) >= 1:
+                avg_minionskilled = sum(minionskilled) / len(minionskilled)
+            else:
+                avg_minionskilled = np.nan
+
+            if len(neutral_minions_killed) >= 1:
+                avg_neutral_minions_killed = sum(neutral_minions_killed) / len(neutral_minions_killed)
+            else:
+                avg_neutral_minions_killed = np.nan
+
+            if len(wards_placed) >= 1:
+                avg_wards_placed = sum(wards_placed) / len(wards_placed)
+            else:
+                avg_wards_placed = np.nan
+
+            if len(wards_killed) >= 1:
+                avg_wards_killed = sum(wards_killed) / len(wards_killed)
+            else:
+                avg_wards_killed = np.nan
+
+            if len(damage_taken) >= 1:
+                avg_damage_taken = sum(damage_taken) / len(damage_taken)
+            else:
+                avg_damage_taken = np.nan
 
             merged_large["{}_win_or_loss".format(lane_team)].iloc[i] = avg_win_or_loss
             merged_large["{}_kills".format(lane_team)].iloc[i] = avg_kills
@@ -971,7 +1212,6 @@ def very_detail_champ_info_and_history(df , main_api_key, api_key_list, lane_tea
             merged_large["{}_wards_killed".format(lane_team)].iloc[i] = avg_wards_killed
             merged_large["{}_damage_taken".format(lane_team)].iloc[i] = avg_damage_taken
 
-
         except Exception as e:
             print("error total : {}".format(e))
             continue
@@ -979,10 +1219,12 @@ def very_detail_champ_info_and_history(df , main_api_key, api_key_list, lane_tea
 
 
 
-def very_detail_champ_info_and_history_for_all_lanes(df , main_api_key, api_key_list, lane_team):
+def very_detail_champ_info_and_history_for_all_lanes(df , main_api_key, api_key_listing, lane_team):
     #all_lanes = ["TOP100","JUNGLE100","MID100","ADC100","SUPPORT100","TOP200","JUNGLE200","MID200","ADC200","SUPPORT200"]
     merged_added = df.copy()
+    api_key_list = api_key_listing.copy()
     for lane in all_lanes:
+        print(lane)
         merged_added = very_detail_champ_info_and_history(merged_added , main_api_key, api_key_list, lane)
     return merged_added
 
@@ -1022,7 +1264,7 @@ def final_final_modify(final_data):
 
 
 
-def change_champID_to_champName(df ,general_champ_df ,lanes,):
+def change_champID_to_champName(df ,general_champ_df ,lanes):
     champ_info = general_champ_df.copy()
     all_lanes = lanes
     merged_added = df.copy()
@@ -1036,31 +1278,121 @@ def change_champID_to_champName(df ,general_champ_df ,lanes,):
 
 # testing = change_champID_to_champName(merged_added, champ_info , all_lanes)
 
+
+
+
+
+
+# import datetime
+# main_api_key = api_config.main_api_key
+#
+# api_key1 = "RGAPI-97f5f62b-8ccb-4b9d-b34c-554b9f4b4499"
+# api_key2 = "RGAPI-15aefc8d-50cd-4a90-81fd-af88acd38312"
+# api_key3 = "RGAPI-4d18bd3f-e718-4cb3-8ce6-c32d59d0987c"
+# api_key_list = [api_key1 , api_key2, api_key3]
+#
+#
+#
+#
+# a = datetime.datetime.now()
+# gm_df = show_grandmaster_info(main_api_key)
+# gm_df = df_summoner_accountid(gm_df, main_api_key)
+# match_info_df =  accountID_to_matchINFO(league_df3 = gm_df, endIndex=2, api_key= main_api_key)
+# match_info_df =  match_info_df.drop_duplicates(subset = "gameId").reset_index(drop = True)
+# match_df = game_id_to_match_detail(match_info_df, main_api_key)
+# match_df  = modifiy_match_df_original(match_df)
+# b = datetime.datetime.now()
+# match_df.to_csv("match_df.csv")
+# print(b - a )
+#
+#
+# c = datetime.datetime.now()
+# match_df = match_df.drop_duplicates(subset = "gameId").reset_index(drop=True)
+# match_time_list = get_time_line_list(match_df, main_api_key, api_key_list)
+# spell = spell_general_info()
+# lane_matching_df = participants_for_lanes(match_df, match_time_list)
+# lane_info = modify_lane_matching_df(lane_matching_df)
+# merged_info = merge_lane_info_to_match_info(match_df, lane_info)
+# merged_info = modify_merged_info(merged_info)
+# merged_info.to_csv("middle_point_saving1.csv")
+# d = datetime.datetime.now()
+# print(d - c)
+#
+#
+#
+#
+#
+# e = datetime.datetime.now()
+# merged_info = get_win_loss_col(merged_info)
+# merged_added = get_champion_sumId_cols(merged_info)
+# all_lanes =["TOP100","JUNGLE100","MID100","ADC100","SUPPORT100","TOP200","JUNGLE200","MID200","ADC200", "SUPPORT200"]
+# merged_added = get_summonerLevel_for_all_lanes(merged_added,main_api_key, api_key_list,all_lanes)
+# merged_added = merged_added.dropna()
+# merged_added = get_win_los_rate_info_all_lanes(merged_added , main_api_key , api_key_list ,all_lanes )
+# merged_added = merged_added.dropna()
+# merged_added.to_csv("middle_point_saving2.csv")
+# f = datetime.datetime.now()
+# print(f - e)
+#
+#
+#
+# g = datetime.datetime.now()
+# merged_checking= champion_avg_detail_for_all_lanes(merged_added , main_api_key , api_key_list , all_lanes)
+# h = datetime.datetime.now()
+# print(h-g)
+# merged_checking.to_csv("middle_point_saving3.csv")
+#
+#
+# ii = datetime.datetime.now()
+# merged_checking = merged_checking.dropna()  ########### dropping na
+# merged_final = very_detail_champ_info_and_history_for_all_lanes(merged_checking, main_api_key, api_key_list, all_lanes )
+# final_final = final_final_modify(merged_final)
+# j = datetime.datetime.now()
+# print(j-ii)
+# final_final.to_csv("final_final.csv")
+#
+#
+# pymysql.install_as_MySQLdb()
+# host = "192.168.0.181"
+# db_name = "lolpred"
+# user_name = "root"
+# password = "123"
+# port = 3306
+# db_type = "mysql"
+# connect_db = connect_sql(host,db_name,user_name,password,port, db_type)
+# connect_db.insert_df(final_final , "grandmaster_0805)
+
+
+
+
+
+
+
 if __name__ == '__main__':
     import datetime
     main_api_key = api_config.main_api_key
 
-    api_key1 = "RGAPI-d979f7c5-00cd-436c-8d48-69bfb997187b"
-    api_key2 = "RGAPI-869b05b6-b91c-4511-acc6-852c1686babe"
-    api_key3 = "RGAPI-d28bdeec-f6f6-418d-b592-1deea6276051"
+    api_key1 = "RGAPI-97f5f62b-8ccb-4b9d-b34c-554b9f4b4499"
+    api_key2 = "RGAPI-15aefc8d-50cd-4a90-81fd-af88acd38312"
+    api_key3 = "RGAPI-4d18bd3f-e718-4cb3-8ce6-c32d59d0987c"
     api_key_list = [api_key1 , api_key2, api_key3]
 
-    #current_ver = get_current_version(api_key1)
-    #champ_info = get_champion_id_by_current_version(main_api_key ,current_ver)
-    #champion_key_to_id(champ_info,["26","142"]).tolist()
+
     a = datetime.datetime.now()
-    #
-    gm_df = show_grandmaster_info(main_api_key  )
-    gm_df = df_summoner_accountid(gm_df, main_api_key )
-    match_info_df =  accountID_to_matchINFO(league_df3 = gm_df, endIndex=1, api_key= main_api_key)
-    match_info_df = match_info_df.reset_index(drop =True )
+    gm_df = show_grandmaster_info(main_api_key)
+    gm_df = df_summoner_accountid(gm_df, main_api_key)
+    match_info_df =  accountID_to_matchINFO(league_df3 = gm_df, endIndex=2, api_key= main_api_key)
+    match_info_df =  match_info_df.drop_duplicates(subset = "gameId").reset_index(drop = True)
     match_df = game_id_to_match_detail(match_info_df, main_api_key)
-    #match_df  = modifiy_match_df_original(match_df)
+    match_df  = modifiy_match_df_original(match_df)
     b = datetime.datetime.now()
+    match_df.to_csv("match_df.csv")
     print(b - a )
 
+
     c = datetime.datetime.now()
-    match_time_list = get_time_line_list(match_df, api_key_list)
+    match_df = match_df.drop_duplicates(subset = "gameId").reset_index(drop=True)
+    match_time_list = get_time_line_list(match_df, main_api_key, api_key_list)
     spell = spell_general_info()
     lane_matching_df = participants_for_lanes(match_df, match_time_list)
     lane_info = modify_lane_matching_df(lane_matching_df)
@@ -1070,15 +1402,20 @@ if __name__ == '__main__':
     d = datetime.datetime.now()
     print(d - c)
 
+
+
     e = datetime.datetime.now()
     merged_info = get_win_loss_col(merged_info)
     merged_added = get_champion_sumId_cols(merged_info)
     all_lanes =["TOP100","JUNGLE100","MID100","ADC100","SUPPORT100","TOP200","JUNGLE200","MID200","ADC200", "SUPPORT200"]
     merged_added = get_summonerLevel_for_all_lanes(merged_added,main_api_key, api_key_list,all_lanes)
+    merged_added = merged_added.dropna()
     merged_added = get_win_los_rate_info_all_lanes(merged_added , main_api_key , api_key_list ,all_lanes )
+    merged_added = merged_added.dropna()
     merged_added.to_csv("middle_point_saving2.csv")
     f = datetime.datetime.now()
     print(f - e)
+
 
     g = datetime.datetime.now()
     merged_checking= champion_avg_detail_for_all_lanes(merged_added , main_api_key , api_key_list , all_lanes)
@@ -1086,18 +1423,22 @@ if __name__ == '__main__':
     print(h-g)
     merged_checking.to_csv("middle_point_saving3.csv")
 
+
     ii = datetime.datetime.now()
+    merged_checking = merged_checking.dropna()  ########### dropping na
     merged_final = very_detail_champ_info_and_history_for_all_lanes(merged_checking, main_api_key, api_key_list, all_lanes )
     final_final = final_final_modify(merged_final)
     j = datetime.datetime.now()
     print(j-ii)
-    final_final.to_csv("final_final.csv",)
+    final_final.to_csv("final_final.csv")
 
-    host = "192.168.0.181"
-    db_name = "lolpred"
-    user_name = "root"
-    password = "123"
-    port = 3306
-    db_type = "mysql"
-    connect_db = connect_sql(host,db_name,user_name,password,port, db_type)
-    connect_db.insert_df(final_final , "grandmaster_0802")
+
+    # pymysql.install_as_MySQLdb()
+    # host = "192.168.0.181"
+    # db_name = "lolpred"
+    # user_name = "root"
+    # password = "123"
+    # port = 3306
+    # db_type = "mysql"
+    # connect_db = connect_sql(host,db_name,user_name,password,port, db_type)
+    # connect_db.insert_df(final_final , "grandmaster_0805)
