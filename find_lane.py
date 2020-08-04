@@ -494,6 +494,7 @@ def modify_merged_info(df):
     #del merged_info["status"]
     return merged_info
 
+
 # 승패 가리는 변수 생성후 target 컬럼으로 저장
 def get_win_loss_col(df):
     merged_info = df.copy()
@@ -628,7 +629,6 @@ def del_nan_merge_large(df):
 #five = path +"lol/summoner/v4/summoners/{}?api_key={}".format(encryptedSummonerId,api_key)
 #################################################################
 
-
 # same as 5 but just use name instead
 #six = path +"lol/summoner/v4/summoners/by-name/{}?api_key={}".format(summonerName,api_key)
 
@@ -650,19 +650,17 @@ def get_summonerLevel(df, main_api_key, api_key_listing ,lane_team):
             while r.status_code == 429 or r.status_code ==504:
                 if trying:
                     try:
-                        if r.status_Code == 504:
+                        if r.status_code == 504:
                             print("gateaway timeout")
                             count = count + 1
                             if count == 150:
                                 break
-
                         api_url = temp_path.format(merged_large["{}_sumName".format(lane_team)].iloc[i] ,  api_machine.switch() )
-                        temp_r = requests.get(api_url)
-                        if temp_r.status_code == 404:
+                        r = requests.get(api_url)
+                        if r.status_code == 404:
+                            api_url = path.format(merged_large["{}_accountId".format(lane_team)].iloc[i] , main_api_key )
                             trying = False
-                            continue
-                        r = temp_r
-
+                            r = requests.get(api_url)
                     except Exception as e:
                         print("an error_here {}".format(e))
                         trying = False
@@ -671,6 +669,11 @@ def get_summonerLevel(df, main_api_key, api_key_listing ,lane_team):
                     time.sleep(1)
                     api_url = path.format(merged_large["{}_accountId".format(lane_team)].iloc[i] , main_api_key )
                     r = requests.get(api_url)
+
+
+
+
+
             merged_large["{}_summonerLevel".format(lane_team)].iloc[i] = r.json()["summonerLevel"]
 
         except Exception as e:
@@ -745,7 +748,7 @@ def get_win_los_rate_info(df, main_api_key, api_key_list, lane_team):
                         pirnt("some kind of error {}".format(e))
                         break
             temp_df[i] =  pd.Series(r.json()[0] )
-        except:
+        except Exception as e:
             print("an error {}".format(e))
             print(i)
             temp_df[i] = None
@@ -1366,8 +1369,6 @@ def change_champID_to_champName(df ,general_champ_df ,lanes):
 
 
 
-
-
 if __name__ == '__main__':
     import datetime
     main_api_key = api_config.main_api_key
@@ -1376,38 +1377,41 @@ if __name__ == '__main__':
     api_key2 = "RGAPI-15aefc8d-50cd-4a90-81fd-af88acd38312"
     api_key3 = "RGAPI-4d18bd3f-e718-4cb3-8ce6-c32d59d0987c"
     api_key_list = [api_key1 , api_key2, api_key3]
+    all_lanes =["TOP100","JUNGLE100","MID100","ADC100","SUPPORT100","TOP200","JUNGLE200","MID200","ADC200", "SUPPORT200"]
 
+    # a = datetime.datetime.now()
+    # gm_df = show_grandmaster_info(main_api_key)
+    # gm_df = df_summoner_accountid(gm_df, main_api_key)
+    # match_info_df =  accountID_to_matchINFO(league_df3 = gm_df, endIndex=2, api_key= main_api_key)
+    # match_info_df =  match_info_df.drop_duplicates(subset = "gameId").reset_index(drop = True)
+    # match_df = game_id_to_match_detail(match_info_df, main_api_key)
+    # match_df  = modifiy_match_df_original(match_df)
+    # b = datetime.datetime.now()
+    # match_df.to_csv("match_df.csv")
+    # print(b - a )
+    #
+    #
+    # c = datetime.datetime.now()
+    # match_df = match_df.drop_duplicates(subset = "gameId").reset_index(drop=True)
+    # match_time_list = get_time_line_list(match_df, main_api_key, api_key_list)
+    # spell = spell_general_info()
+    # lane_matching_df = participants_for_lanes(match_df, match_time_list)
+    # lane_info = modify_lane_matching_df(lane_matching_df)
+    # merged_info = merge_lane_info_to_match_info(match_df, lane_info)
+    # merged_info = modify_merged_info(merged_info)
+    # merged_info.to_csv("middle_point_saving1.csv")
+    # d = datetime.datetime.now()
+    # print(d - c)
 
-    a = datetime.datetime.now()
-    gm_df = show_grandmaster_info(main_api_key)
-    gm_df = df_summoner_accountid(gm_df, main_api_key)
-    match_info_df =  accountID_to_matchINFO(league_df3 = gm_df, endIndex=2, api_key= main_api_key)
-    match_info_df =  match_info_df.drop_duplicates(subset = "gameId").reset_index(drop = True)
-    match_df = game_id_to_match_detail(match_info_df, main_api_key)
-    match_df  = modifiy_match_df_original(match_df)
-    b = datetime.datetime.now()
-    match_df.to_csv("match_df.csv")
-    print(b - a )
+    ##
+    merged_info = pd.read_csv("middle_point_saving1.csv" , index_col = 0)
+    for column in ['teams', 'participants', 'participantIdentities']:
+        merged_info[column] = merged_info[column].map(lambda v: eval(v))
 
-
-    c = datetime.datetime.now()
-    match_df = match_df.drop_duplicates(subset = "gameId").reset_index(drop=True)
-    match_time_list = get_time_line_list(match_df, main_api_key, api_key_list)
-    spell = spell_general_info()
-    lane_matching_df = participants_for_lanes(match_df, match_time_list)
-    lane_info = modify_lane_matching_df(lane_matching_df)
-    merged_info = merge_lane_info_to_match_info(match_df, lane_info)
-    merged_info = modify_merged_info(merged_info)
-    merged_info.to_csv("middle_point_saving1.csv")
-    d = datetime.datetime.now()
-    print(d - c)
-
-
-
+    ###
     e = datetime.datetime.now()
     merged_info = get_win_loss_col(merged_info)
     merged_added = get_champion_sumId_cols(merged_info)
-    all_lanes =["TOP100","JUNGLE100","MID100","ADC100","SUPPORT100","TOP200","JUNGLE200","MID200","ADC200", "SUPPORT200"]
     merged_added = get_summonerLevel_for_all_lanes(merged_added,main_api_key, api_key_list,all_lanes)
     merged_added = merged_added.dropna()
     merged_added = get_win_los_rate_info_all_lanes(merged_added , main_api_key , api_key_list ,all_lanes )
