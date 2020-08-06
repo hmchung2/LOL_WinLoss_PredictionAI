@@ -1367,6 +1367,12 @@ def change_champID_to_champName(df ,general_champ_df ,lanes):
 
 
 
+main_api_key = api_config.main_api_key
+api_key2 = "RGAPI-65454244-792a-4941-a11e-629154eeff9c"
+api_key3 = 'RGAPI-ad0fb4d1-861b-4b6c-8225-24fd12996850'
+api_key1 = 'RGAPI-10b7e0b9-7424-4db6-9a18-d4b55eff2f2c'
+show_grandmaster_info(api_key2)
+
 
 
 if __name__ == '__main__':
