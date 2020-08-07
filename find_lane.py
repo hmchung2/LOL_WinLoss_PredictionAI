@@ -218,10 +218,6 @@ def modifiy_match_df_original(df):
     match_df = match_df.loc[select_indices, :].reset_index(drop=True)
     return match_df
 
-
-
-
-#
 # def modfify_match_df(df):
 #     match_df = df.copy()
 #     match_df["gameId"] = list(map(lambda x: int(x), match_df["gameId"]))
@@ -1366,12 +1362,11 @@ def change_champID_to_champName(df ,general_champ_df ,lanes):
 # connect_db.insert_df(final_final , "grandmaster_0805)
 
 
-
 main_api_key = api_config.main_api_key
 api_key2 = "RGAPI-65454244-792a-4941-a11e-629154eeff9c"
 api_key3 = 'RGAPI-ad0fb4d1-861b-4b6c-8225-24fd12996850'
 api_key1 = 'RGAPI-10b7e0b9-7424-4db6-9a18-d4b55eff2f2c'
-show_grandmaster_info(api_key2)
+
 
 
 
@@ -1385,29 +1380,29 @@ if __name__ == '__main__':
     api_key_list = [api_key1 , api_key2, api_key3]
     all_lanes =["TOP100","JUNGLE100","MID100","ADC100","SUPPORT100","TOP200","JUNGLE200","MID200","ADC200", "SUPPORT200"]
 
-    # a = datetime.datetime.now()
-    # gm_df = show_grandmaster_info(main_api_key)
-    # gm_df = df_summoner_accountid(gm_df, main_api_key)
-    # match_info_df =  accountID_to_matchINFO(league_df3 = gm_df, endIndex=2, api_key= main_api_key)
-    # match_info_df =  match_info_df.drop_duplicates(subset = "gameId").reset_index(drop = True)
-    # match_df = game_id_to_match_detail(match_info_df, main_api_key)
-    # match_df  = modifiy_match_df_original(match_df)
-    # b = datetime.datetime.now()
-    # match_df.to_csv("match_df.csv")
-    # print(b - a )
-    #
-    #
-    # c = datetime.datetime.now()
-    # match_df = match_df.drop_duplicates(subset = "gameId").reset_index(drop=True)
-    # match_time_list = get_time_line_list(match_df, main_api_key, api_key_list)
-    # spell = spell_general_info()
-    # lane_matching_df = participants_for_lanes(match_df, match_time_list)
-    # lane_info = modify_lane_matching_df(lane_matching_df)
-    # merged_info = merge_lane_info_to_match_info(match_df, lane_info)
-    # merged_info = modify_merged_info(merged_info)
-    # merged_info.to_csv("middle_point_saving1.csv")
-    # d = datetime.datetime.now()
-    # print(d - c)
+    a = datetime.datetime.now()
+    gm_df = show_grandmaster_info(main_api_key)
+    gm_df = df_summoner_accountid(gm_df, main_api_key)
+    match_info_df =  accountID_to_matchINFO(league_df3 = gm_df, endIndex=2, api_key= main_api_key)
+    match_info_df =  match_info_df.drop_duplicates(subset = "gameId").reset_index(drop = True)
+    match_df = game_id_to_match_detail(match_info_df, main_api_key)
+    match_df  = modifiy_match_df_original(match_df)
+    b = datetime.datetime.now()
+    match_df.to_csv("match_df.csv")
+    print(b - a )
+
+
+    c = datetime.datetime.now()
+    match_df = match_df.drop_duplicates(subset = "gameId").reset_index(drop=True)
+    match_time_list = get_time_line_list(match_df, main_api_key, api_key_list)
+    spell = spell_general_info()
+    lane_matching_df = participants_for_lanes(match_df, match_time_list)
+    lane_info = modify_lane_matching_df(lane_matching_df)
+    merged_info = merge_lane_info_to_match_info(match_df, lane_info)
+    merged_info = modify_merged_info(merged_info)
+    merged_info.to_csv("middle_point_saving1.csv")
+    d = datetime.datetime.now()
+    print(d - c)
 
     ##
     merged_info = pd.read_csv("middle_point_saving1.csv" , index_col = 0)
@@ -1451,4 +1446,100 @@ if __name__ == '__main__':
     # port = 3306
     # db_type = "mysql"
     # connect_db = connect_sql(host,db_name,user_name,password,port, db_type)
-    # connect_db.insert_df(final_final , "grandmaster_0805)
+    # connect_db.insert_df(final_final , "grandmaster_0805")
+
+
+######################################################################################################
+######################################################################################################
+######################################################################################################
+######################################################################################################
+######################################################################################################
+#
+# data1, data2 = testing(df, main_api_key, api_key_list, lane_team)
+#
+#
+# def testing(df, main_api_key, api_key_list, lane_team):
+#     merged_large = df.copy()
+#     api_machine  = api_box(api_key_list)
+#     path = "https://kr.api.riotgames.com/lol/league/v4/entries/by-summoner/{}?api_key={}"
+#     tempo_path = "https://kr.api.riotgames.com/lol/summoner/v4/summoners/by-name/{}?api_key={}"
+#     temp_df = pd.DataFrame()
+#     api_urls = list(map(lambda sum: path.format(sum,main_api_key ), merged_large["{}_sumID".format(lane_team)]  ))
+#     if len(api_urls) != len(merged_large):
+#         print("creted api urls do not have the same length as the df, aborting and causing an error on purpose")
+#         #5 / 0
+#     finish = False
+#     checking_index = 0
+#     for i in tqdm(range(len(api_urls))):
+#         try:
+#             api_url = api_urls[i]
+#             r = requests.get(api_url)
+#             trying = True
+#             count = 0
+#             count2  = 0
+#             if r.status_code == 429:
+#                 print("now it is going through different api")
+#             while r.status_code == 429 or r.status_code == 504:
+#
+#                 if r.status_code == 504:
+#                     print("gateaway timeout")
+#                     count = count + 1
+#                     if count == 150:
+#                         break
+#                 if trying:
+#                     tempo_api_url = tempo_path.format(merged_large["{}_sumName".format(lane_team)].iloc[i] , api_machine.switch())
+#                     tempo_r = requests.get(tempo_api_url)
+#                     if tempo_r.status_code == 200:
+#                         print("first step worked properly")
+#                     if tempo_r.status_code == 429 or tempo_r.status_code == 504:
+#                         if tempo_r.status_code == 504:
+#                             count2 = count2  + 1
+#                             if count2 == 150:
+#                                 break
+#                         continue
+#                     if tempo_r.status_code == 404:
+#                         trying = False
+#                         continue
+#                     try:
+#                         tempo_id = tempo_r.json()["id"]
+#                         api_url = path.format(tempo_id, api_machine.current_api_key)
+#                         r = requests.get(api_url)
+#                         if r.status_code == 200:
+#                             print("second step worked properly")
+#                             checking_index = i
+#                             finish = True
+#                             data1 = r.json()
+#                             break
+#                     except Exception as e:
+#                         print("some error {}".format(e))
+#                         trying = False
+#                         continue
+#
+#                 else:
+#                     try:
+#                         time.sleep(1)
+#                         api_url = api_url = api_urls[i]
+#                         r = requests.get(api_url)
+#                     except Exception as e:
+#                         pirnt("some kind of error {}".format(e))
+#                         break
+#             if finish:
+#                 break
+#
+#         except Exception as e:
+#             print("an error {}".format(e))
+#             print(i)
+#     time.sleep(30)
+#     print("checking_index {}".format(checking_index))
+#     testing_url =api_urls[checking_index]
+#     testing_r = requests.get(testing_url)
+#     while testing_r.status_code == 429:
+#         time.sleep(1)
+#         testing_r = requests.get(testing_url)
+#     data2 = testing_r.json()
+#     return data1 , data2
+######################################################################################################
+######################################################################################################
+######################################################################################################
+######################################################################################################
+######################################################################################################
