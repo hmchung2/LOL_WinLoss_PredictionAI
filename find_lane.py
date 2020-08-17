@@ -129,10 +129,20 @@ def df_summoner_accountid(league_df,api_key):
     #print('done')
     return league_df
 
+main_api_key = api_config.main_api_key
+df = show_grandmaster_info(main_api_key)
+df2 = df_summoner_accountid(df,main_api_key)
+df3 = df2.loc[:5 , :]
 
+df7  = accountID_to_matchINFO(df3 , 2 ,  main_api_key)
+df8 = game_id_to_match_detail(df7, main_api_key)
+
+df7.timestamp.iloc[0]
+df8
 
 #
 ############################## not interchangeable ##########################################
+
 def accountID_to_matchINFO(league_df3, endIndex , api_key):
     # need account_id column in the data frame
     match_info_df = pd.DataFrame()
@@ -1239,12 +1249,6 @@ def coerce_df_columns_to_numeric(df):
     df[column_list] = df[column_list].apply(pd.to_numeric, errors='coerce')
     return df
 
-def del_nan_merge_large(df):
-    merged_large = df.copy()
-    merged_large = merged_large.dropna()
-    merged_large = coerce_df_columns_to_numeric(merged_large)
-    return merged_large
-
 
 
 def final_final_modify(final_data):
@@ -1399,10 +1403,16 @@ if __name__ == '__main__':
     lane_matching_df = participants_for_lanes(match_df, match_time_list)
     lane_info = modify_lane_matching_df(lane_matching_df)
     merged_info = merge_lane_info_to_match_info(match_df, lane_info)
-    merged_info = modify_merged_info(merged_info)
+
+    try:
+        merged_info = modify_merged_info(merged_info)
+    except Exception as e:
+        print("modify_merged_info error : {}".format(e))
     merged_info.to_csv("middle_point_saving1.csv")
     d = datetime.datetime.now()
     print(d - c)
+
+
 
     ##
     merged_info = pd.read_csv("middle_point_saving1.csv" , index_col = 0)
@@ -1438,15 +1448,15 @@ if __name__ == '__main__':
     final_final.to_csv("final_final.csv")
 
 
-    # pymysql.install_as_MySQLdb()
-    # host = "192.168.0.181"
-    # db_name = "lolpred"
-    # user_name = "root"
-    # password = "123"
-    # port = 3306
-    # db_type = "mysql"
-    # connect_db = connect_sql(host,db_name,user_name,password,port, db_type)
-    # connect_db.insert_df(final_final , "grandmaster_0805")
+    pymysql.install_as_MySQLdb()
+    host = "192.168.0.181"
+    db_name = "lolpred"
+    user_name = "root"
+    password = "123"
+    port = 3306
+    db_type = "mysql"
+    connect_db = connect_sql(host,db_name,user_name,password,port, db_type)
+    connect_db.insert_df(final_final , "grandmaster_0805")
 
 
 ######################################################################################################

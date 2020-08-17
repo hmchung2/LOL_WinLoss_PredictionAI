@@ -6,9 +6,13 @@ from collections import Counter
 from tqdm import tqdm
 import pymysql
 from sqlalchemy import create_engine, types, select
+import api_config
+import requests
 #pymysql.install_as_MySQLdb()
 #import MySQLdb
-
+from tensorflow import feature_column
+from tensorflow.keras import layers
+from sklearn.model_selection import train_test_split
 
 
 class connect_sql:
@@ -41,7 +45,7 @@ class connect_sql:
         self.df = df
 
 
-def get_data():
+def get_data(table_name):
     pymysql.install_as_MySQLdb()
     host = "192.168.0.181"
     db_name = "lolpred"
@@ -50,23 +54,304 @@ def get_data():
     port = 3306
     db_type = "mysql"
     connect_db = connect_sql(host,db_name,user_name,password,port, db_type)
-    connect_db.get_whole_data_frame("grandmaster_0807")
+    connect_db.get_whole_data_frame(table_name )
     df = connect_db.df
     connect_db.conn.close()
     return df
 
-def main():
-    return True
-    
-df = get_data()
+
+df = get_data("grandmaster_0807")
+df
+
 def modifiy_df(df):
-    del
+    champ_index_booling = list(map(lambda x: "_100" not in x and "_200" not in x , df.columns.tolist() ))
+    df = df.loc[:,champ_index_booling ]
+    id_info_booling = list(map(lambda x: "sumName" not in x and "accountId" not in x and "sumID" not in x , df.columns.tolist()  ) )
+    df = df.loc[: , id_info_booling]
+    return df
 
 
-champ_index_booling = list(map(lambda x: "_100" not in x and "_200" not in x , df.columns.tolist() ))
-df = df.loc[:,champ_index_booling ]
-id_info_booling = list(map(lambda x: "sumName" not in x and "accountId" not in x and "sumID" not in x , df.columns.tolist()  ) )
-df = df.loc[: , id_info_booling]
+df = modifiy_df(df)
 
-for i in df.columns:
-    print(i ," : " ,df[i].iloc[0] )
+main_api_key = api_config.main_api_key
+all_lanes  = api_config.all_lanes
+
+
+def get_current_version(key):
+    api_key = key
+    r = requests.get('https://ddragon.leagueoflegends.com/api/versions.json') # version data 확인
+    current_version = r.json()[0]
+    return current_version
+
+def get_champion_id_by_current_version(key, version):
+    api_key = key
+    r = requests.get('http://ddragon.leagueoflegends.com/cdn/{}/data/ko_KR/champion.json'.format(version))
+    parsed_data = r.json() # 파싱
+    info_df = pd.DataFrame(parsed_data)
+    champ_dic = {}
+    for i, champ in enumerate(info_df.data):
+        champ_dic[i] = pd.Series(champ)
+    champ_df = pd.DataFrame(champ_dic).T
+    champ_info_df = pd.DataFrame(dict(champ_df['info'])).T
+    champ_stats_df = pd.DataFrame(dict(champ_df['stats'])).T
+
+
+    # 데이터 합치기
+    champ_df = pd.concat([champ_df, champ_info_df], axis=1)
+    champ_df = pd.concat([champ_df, champ_stats_df], axis=1)
+    # 이번 분석에서 필요없는 데이터 제거
+    champ_df = champ_df.drop(['version', 'image', 'info', 'stats', 'blurb'], axis=1)
+    return champ_df
+
+def champion_key_to_id(champ_info,key_list):
+    new_df = champ_info.set_index(pd.Series(champ_info.key.tolist()))
+    champion_names = new_df.loc[key_list,'id']
+    return champion_names
+
+def switch_champId_to_champName(df , which_lanes, api_key):
+    current_version = get_current_version(api_key)
+    champ_info = get_champion_id_by_current_version(api_key , current_version)
+    all_lanes = which_lanes.copy()
+    for lane in all_lanes:
+        champId_list = df["{}_champ".format(lane)].tolist()
+        champId_list = list(map(lambda x: str(x) , champId_list  ))
+        df["{}_champ".format(lane)] = champion_key_to_id(champ_info , champId_list).tolist()
+    return df
+
+df.iloc[:,20 : 30]
+modified_df = switch_champId_to_champName(df, all_lanes , main_api_key)
+
+
+modified_df2 =  process_lastplaytime(modified_df , all_lanes)
+
+def process_lastplaytime(df , which_lanes):
+    modified_df = df.copy()
+    all_lanes = which_lanes.copy()
+    game_creation_array = np.array(modified_df.gameCreation.tolist())
+    for lane in all_lanes:
+        last_playtime_array = np.array( modified_df["{}_lastplaytime".format(lane)].tolist())
+        avg_last_playtime_array = np.array(modified_df["{}_avg_lastplaytime".format(lane)].tolist())
+        processed_lastplaytime =  game_creation_array  - last_playtime_array
+        processed_avg_lastplaytime = game_creation_array - avg_last_playtime_array
+        modified_df["{}_lastplaytime".format(lane)] = processed_lastplaytime.tolist()
+        modified_df["{}_avg_lastplaytime".format(lane)] = processed_avg_lastplaytime.tolist()
+    return modified_df
+
+def del_last_playtime(df):
+    bool_list = list(map(lambda x: "lastplaytime" not in x , df.columns.tolist()  ))
+    df = df.loc[: , bool_list]
+    return df
+
+modified_df3 = del_last_playtime(modified_df2)     ### for now only....  will check this variable someday
+
+
+def change_roman_number(df , which_lanes):
+    all_lanes = which_lanes.copy()
+    modified_df3 = df.copy()
+    subs = {"I":1 , "II":2 , "III":3 , "IV":4 }
+    for lane in all_lanes:
+        rank_list  =  modified_df3["{}_rank".format(lane)].tolist()
+        modified_rank_list = list(map(lambda x: int(subs[x]) , rank_list  ))
+        modified_df3["{}_rank".format(lane)] = modified_rank_list
+        modified_df3["{}_rank".format(lane)] = modified_df3["{}_rank".format(lane)].astype(int)
+    return modified_df3
+
+modified_df5 = change_roman_number(modified_df3 , all_lanes)
+if "gameId" in modified_df5.columns.tolist(): del modified_df5["gameId"]
+if "gameCreation" in modified_df5.columns.tolist(): del modified_df5["gameCreation"]
+
+for col in modified_df5.columns.tolist():
+    if col in modified_df5.select_dtypes(include=['float64']).columns.tolist():
+        modified_df5[col] = modified_df5[col].astype(np.float32)
+
+def df_to_dataset(dataframe, shuffle=True, batch_size=32):
+  dataframe = dataframe.copy()
+  labels = dataframe.pop('target')
+  ds = tf.data.Dataset.from_tensor_slices((dict(dataframe), labels))
+  if shuffle:
+    ds = ds.shuffle(buffer_size=len(dataframe))
+  ds = ds.batch(batch_size)
+  return ds
+
+
+
+
+# fog project example ############################################
+# feature_columns = []
+# train_columns = train.columns.tolist()
+# if "target" in train_columns: train_columns.remove("target")
+# for header in train_columns:
+#     feature_columns.append(feature_column.numeric_column(header))
+#
+# feature_layer = tf.keras.layers.DenseFeatures(feature_columns)
+##################################################################
+
+# object  :tier ,
+# true false : veteran  , inactive , freshBlood , hotStreak
+# oridinal : rank
+
+current_version = get_current_version(main_api_key)
+champ_info = get_champion_id_by_current_version(main_api_key, current_version)
+
+
+# for x, y in zip( modified_df5.columns, modified_df5.dtypes):
+#     print( x , " : " ,  y)
+
+def create_feature_columns(df , champ_info):
+    modified_df5 = df.copy()
+    col_list = modified_df5.columns.tolist()
+    if "gameId" in col_list: col_list.remove("gameId")
+    if "gameCreation" in col_list: col_list.remove("gameCreation")
+    if "target" in col_list: col_list.remove("target")
+    tiers = api_config.tiers
+    feature_columns = []
+
+    for col in col_list:
+        if col.endswith("_champ") and "damage" not in col:
+            #print(col)
+            categ_var = feature_column.categorical_column_with_vocabulary_list(col , champ_info.id.tolist() )
+            the_one_hot = feature_column.indicator_column(categ_var)
+            feature_columns.append(the_one_hot)
+
+        elif col.endswith("_tier"):
+            categ_var = feature_column.categorical_column_with_vocabulary_list(col , tiers )
+            the_one_hot = feature_column.indicator_column(categ_var)
+            feature_columns.append(the_one_hot)
+        elif col.endswith("veteran") or col.endswith("_inactive") or col.endswith("_freshBlood") or col.endswith("_hotStreak"):
+            #print(col)
+            categ_var = feature_column.categorical_column_with_vocabulary_list(col , [0,1] )
+            the_one_hot = feature_column.indicator_column(categ_var)
+            feature_columns.append(the_one_hot)
+        else:
+            feature_columns.append(feature_column.numeric_column(col ))
+    return feature_columns
+
+
+feature_columns = create_feature_columns(modified_df5 , champ_info)
+feature_layer = tf.keras.layers.DenseFeatures(feature_columns)
+
+
+
+
+train, test = train_test_split(modified_df5, test_size=0.1)
+train, val = train_test_split(train, test_size=0.1)
+batch_size = 5 # 예제를 위해 작은 배치 크기를 사용합니다.
+
+
+train_ds = df_to_dataset(train, batch_size=batch_size)
+val_ds = df_to_dataset(val, shuffle=False, batch_size=batch_size)
+test_ds = df_to_dataset(test, shuffle=False, batch_size=batch_size)
+
+model = tf.keras.Sequential([
+    feature_layer,
+    layers.Dense(128, activation='relu'),
+    layers.Dense(128, activation='relu'),
+    layers.Dense(1, activation='sigmoid')])
+
+model.compile(optimizer='adam',
+              loss='binary_crossentropy',
+              metrics=['accuracy'])
+
+model.fit(train_ds,
+          validation_data=val_ds,
+          epochs=5)
+
+# #feature_columns = []
+#
+# # 수치형 열
+# for header in ['age', 'trestbps', 'chol', 'thalach', 'oldpeak', 'slope', 'ca']:
+#   feature_columns.append(feature_column.numeric_column(header))
+#
+# # 버킷형 열
+# age_buckets = feature_column.bucketized_column(age, boundaries=[18, 25, 30, 35, 40, 45, 50, 55, 60, 65])
+# feature_columns.append(age_buckets)
+#
+# # 범주형 열
+# thal = feature_column.categorical_column_with_vocabulary_list(
+#       'thal2', ['fixed', 'normal', 'reversible'])
+# thal_one_hot = feature_column.indicator_column(thal)
+# feature_columns.append(thal_one_hot)
+#
+# # 임베딩 열
+# thal_embedding = feature_column.embedding_column(thal, dimension=8)
+# feature_columns.append(thal_embedding)
+#
+# # 교차 특성 열
+# crossed_feature = feature_column.crossed_column([age_buckets, thal], hash_bucket_size=1000)
+# crossed_feature = feature_column.indicator_column(crossed_feature)
+# feature_columns.append(crossed_feature)
+# feature_layer = tf.keras.layers.DenseFeatures(feature_columns)
+
+
+
+
+
+
+
+URL = 'https://storage.googleapis.com/applied-dl/heart.csv'
+dataframe = pd.read_csv(URL)
+dataframe.head()
+
+train, test = train_test_split(dataframe, test_size=0.2)
+train, val = train_test_split(train, test_size=0.2)
+print(len(train), '훈련 샘플')
+print(len(val), '검증 샘플')
+print(len(test), '테스트 샘플')
+
+def df_to_dataset(dataframe, shuffle=True, batch_size=32):
+  dataframe = dataframe.copy()
+  labels = dataframe.pop('target')
+  ds = tf.data.Dataset.from_tensor_slices((dict(dataframe), labels))
+  if shuffle:
+    ds = ds.shuffle(buffer_size=len(dataframe))
+  ds = ds.batch(batch_size)
+  return ds
+
+feature_columns = []
+
+# 수치형 열
+for header in ['age', 'trestbps', 'chol', 'thalach', 'oldpeak', 'slope', 'ca']:
+  feature_columns.append(feature_column.numeric_column(header))
+
+# 버킷형 열
+age = feature_column.numeric_column("age")
+age_buckets = feature_column.bucketized_column(age, boundaries=[18, 25, 30, 35, 40, 45, 50, 55, 60, 65])
+feature_columns.append(age_buckets)
+
+# 범주형 열
+thal = feature_column.categorical_column_with_vocabulary_list(
+      'thal', ['fixed', 'normal', 'reversible'])
+thal_one_hot = feature_column.indicator_column(thal)
+feature_columns.append(thal_one_hot)
+
+# 임베딩 열
+thal_embedding = feature_column.embedding_column(thal, dimension=8)
+feature_columns.append(thal_embedding)
+
+# 교차 특성 열
+crossed_feature = feature_column.crossed_column([age_buckets, thal], hash_bucket_size=1000)
+crossed_feature = feature_column.indicator_column(crossed_feature)
+feature_columns.append(crossed_feature)
+
+feature_layer = tf.keras.layers.DenseFeatures(feature_columns)
+
+batch_size = 32
+train_ds = df_to_dataset(train, batch_size=batch_size)
+val_ds = df_to_dataset(val, shuffle=False, batch_size=batch_size)
+test_ds = df_to_dataset(test, shuffle=False, batch_size=batch_size)
+
+
+model = tf.keras.Sequential([
+  feature_layer,
+  layers.Dense(128, activation='relu'),
+  layers.Dense(128, activation='relu'),
+  layers.Dense(1, activation='sigmoid')
+])
+
+model.compile(optimizer='adam',
+              loss='binary_crossentropy',
+              metrics=['accuracy'])
+
+model.fit(train_ds,
+          validation_data=val_ds,
+          epochs=5)
