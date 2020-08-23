@@ -312,24 +312,7 @@ def transform_df(raw_df):
     return new_df
 
 
-transformed_df = transform_df(normed_train)
-transformed_df
 
-
-labels = transformed_df.pop("target")
-ds = tf.data.Dataset.from_tensor_slices((dict(transformed_df), labels  )  )
-ds  = ds.shuffle(buffer_size  = len(transformed_df) )
-ds  = ds.batch(5)
-transformed_df
-normed_train
-transformed_df.columns
-
-len(transformed_df.TOP100_good_categ.iloc[0])
-
-
-feature_columns = create_feature_columns(transformed_df , all_lanes)
-transformed_df.shape
-len(feature_columns)
 
 
 def create_feature_columns(df , which_lanes):
@@ -382,30 +365,74 @@ def create_feature_columns(df , which_lanes):
     return feature_columns
 
 
+
+transformed_train = transform_df(normed_train)
+transformed_val = transform_df(normed_val)
+transformed_test = transform_df(normed_test)
+
 feature_columns = create_feature_columns(transformed_df , all_lanes)
 feature_layer = tf.keras.layers.DenseFeatures(feature_columns)
 
-train_ds = df_to_dataset(transformed_df)
+
+a =  np.array([ [[0,1], [0,1]] ,
+[[0,1],[0,1]],
+[[0,1],[0,1]],
+[[0,1],[0,1]],
+[[0,1],[0,1]],
+])
+
+
+a.shape
+
+train_ds = df_to_dataset(transformed_train)
+val_ds = df_to_dataset(transformed_val)
+test_ds = df_to_dataset(transformed_test, shuffle = False)
 
 model = tf.keras.Sequential([
     feature_layer,
-    layers.Dense(32, activation='relu'),
-    layers.Dense(16, activation='relu'),
+    layers.Dense(1024, activation='relu', kernel_regularizer=tf.keras.regularizers.l2(0.001)),
+    layers.Dense(512, activation='relu', kernel_regularizer=tf.keras.regularizers.l2(0.001)),
+    tf.keras.layers.Dropout(0.5),
+    layers.Dense(256, activation='relu', kernel_regularizer=tf.keras.regularizers.l2(0.001)),
+    tf.keras.layers.Dropout(0.3),
+    layers.Dense(128, activation='relu',  kernel_regularizer=tf.keras.regularizers.l2(0.001)),
+    tf.keras.layers.Dropout(0.2),
+    layers.Dense(64, activation='relu', kernel_regularizer=tf.keras.regularizers.l2(0.001)),
+    layers.Dense(32, activation='relu' ),
     layers.Dense(1, activation='sigmoid')])
 
-model.compile(optimizer='adam',
+
+
+
+model.compile( optimizer= 'adam' ,
               loss='binary_crossentropy',
               metrics=['accuracy'])
 
-feature_columns
-transformed_df
-normed_train
+
+
 
 #tf.keras.backend.set_floatx('float64')
-model.fit(train_ds, validation_data=train_ds, epochs=5)
+model.fit(train_ds, validation_data=val_ds, epochs=15)
+
+model.evaluate(test_ds)
 
 
 
+
+result= model.predict(test_ds, batch_size = None)
+
+
+a = result.flatten().tolist()
+b = transformed_test.target.tolist()
+
+pred = model.predict_classes(test_ds , batch_size = None).flatten()
+pred =  pred.tolist()
+
+
+pd.DataFrame({"real":b , "pred":a, "pred2":pred}).to_csv("result.csv")
+
+
+model.evaluate(test_ds)
 
 def df_to_dataset(dataframe, shuffle=True, batch_size=32):
   dataframe = dataframe.copy()
@@ -419,27 +446,6 @@ def df_to_dataset(dataframe, shuffle=True, batch_size=32):
 
 
 
-
-for header in ['age', 'trestbps', 'chol', 'thalach', 'oldpeak', 'slope', 'ca']:
-    feature_columns.append(feature_column.numeric_column(header))
-
-
-def transform_df(df):
-    lanes = api_config.all_lanes
-    feature_relations = api_config.feature_relations
-    normed_train = df.copy()
-    new_df = pd.DataFrame()
-    for index in df:
-        for lane in all_lanes:
-            good = []
-            bad = []
-            good_categ = []
-            bad_categ = []
-            for key, value in feature_relations.items():
-                if value == 'good':
-                    good.append(normed_train.loc[index, "{}_{}".format(lane, key)] )
-                elif value == 'bad':
-                    bad.append(normed_train.loc[index ])
 
 
 Counter(feature_relations.values())
