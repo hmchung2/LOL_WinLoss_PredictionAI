@@ -14,20 +14,15 @@ from sklearn.preprocessing import MinMaxScaler
 from pandas.api.types import is_numeric_dtype
 from statistics import mean
 import api_config
+import api_logging
 from sqlalchemy import create_engine, types, select
 from sqlalchemy import *
 import pymysql
 from packaging import version
+import datetime
 
-pymysql.install_as_MySQLdb()
-
-
-import pandas as pd
-from sqlalchemy import create_engine
 
 # MySQL Connector using pymysql
-import MySQLdb
-
 class connect_sql:
     def __init__(self,host,db_name,user_name,password,port, db_type):
         if db_type == "postgres":
@@ -39,9 +34,6 @@ class connect_sql:
         self.conn = engine.connect()
     def insert_df(self, df, table_name):                                                   # 데이터프레임 통채로 데이터베이스에 삽입
         df.to_sql(table_name , con = self.engine, index = False, if_exists ='append', chunksize = 50 )
-
-
-
 
 def get_current_version(key):
     api_key = key
@@ -102,53 +94,38 @@ def show_info(api_key, tier, division, page = 1):
     return league_df
 
 
-
 #leagueId = show_info(api_key,'GOLD',1, 2)["leagueId"][0]
 
 #######################3 not interchangeable #############################
-def df_summoner_accountid(league_df,api_key):
+def df_summoner_accountid(league_df,api_key , log , error_log):
     league_df['account_id'] = None
     for i in range(len(league_df)):
         try:
-            sohwan = 'https://kr.api.riotgames.com/lol/summoner/v4/summoners/by-name/' + league_df['summonerName'].iloc[i] + '?api_key=' + api_key
+            #sohwan = 'https://kr.api.riotgames.com/lol/summoner/v4/summoners/by-name/' + league_df['summonerName'].iloc[i] + '?api_key=' + api_key
+            sohwan = 'https://kr.api.riotgames.com/lol/summoner/v4/summoners/' + league_df['summonerId'].iloc[i] + '?api_key=' + api_key
             r = requests.get(sohwan)
 
             while r.status_code == 429 or r.status_code == 504:
-                time.sleep(5)
-                #print('time to wait')
-                sohwan = 'https://kr.api.riotgames.com/lol/summoner/v4/summoners/by-name/' + league_df['summonerName'].iloc[i] + '?api_key=' + api_key
+                time.sleep(3)
+                print('time to wait')
                 r = requests.get(sohwan)
-
             account_id = r.json()['accountId']
 
             league_df.iloc[i, -1] = account_id
-            #print('going good')
-        except:
-            #print('not ok')
+            print('going good')
+        except Exception as e:
+            error_log.error('df_summoner_accountid error at iteration {} ---> {}'.format( i, e))
             pass
-    #print('done')
     return league_df
 
-main_api_key = api_config.main_api_key
-df = show_grandmaster_info(main_api_key)
-df2 = df_summoner_accountid(df,main_api_key)
-df3 = df2.loc[:5 , :]
-
-df7  = accountID_to_matchINFO(df3 , 2 ,  main_api_key)
-df8 = game_id_to_match_detail(df7, main_api_key)
-
-df7.timestamp.iloc[0]
-df8
-
-#
-############################## not interchangeable ##########################################
-
-def accountID_to_matchINFO(league_df3, endIndex , api_key):
+########################### not interchangeable ##########################################
+def accountID_to_matchINFO(league_df3, endIndex , api_key , log , error_log):
+    log.info("procssing ---> accountId_to_matchINFO")
     # need account_id column in the data frame
     match_info_df = pd.DataFrame()
-    season = str(13)
+    season = Config.season
     EI = str(endIndex)
-    len(league_df3)
+    start =datetime.datetime.now()
     for i in range(len(league_df3)):
         try:
             match0 = 'https://kr.api.riotgames.com/lol/match/v4/matchlists/by-account/' + league_df3['account_id'].iloc[i]  +'?season=' + season +'&endIndex='+ EI+'&api_key=' + api_key
@@ -162,17 +139,23 @@ def accountID_to_matchINFO(league_df3, endIndex , api_key):
 
             match_info_df = pd.concat([match_info_df, pd.DataFrame(r.json()['matches'])])
             #print('going good')
-        except:
+        except Exception as e:
+            error_log.error("accountId_to_matchINFO error at iteration : {} ---> {}".format(i , e))
             continue
             #print('not going good')
             #print(i)
-    print("done")
+    end = datetime.datetime.now()
+    dur = end - start
+    seconds = dur.seconds
+    log.info("accountID_to_matchINFO process duration ---> : {} seconds".format(seconds))
     return match_info_df
 
 
 # Match 데이터 받기 (gameId를 통해 경기의 승패, 팀원과 같은 정보가 담겨있다.)
 ################# interchangeable but not recommending since we will use the data in the futrue  #########################33
-def game_id_to_match_detail(match_info_df2, api_key):
+def game_id_to_match_detail(match_info_df2, api_key, log , error_log):
+    log.info("processing ---> game_id_to_match_detail")
+    start =datetime.datetime.now()
     match_fin = pd.DataFrame()
     for i in range(len(match_info_df2)):
         try:
@@ -189,13 +172,22 @@ def game_id_to_match_detail(match_info_df2, api_key):
             mat = pd.DataFrame(list(r.json().values()), index=list(r.json().keys())).T
             match_fin = pd.concat([match_fin,mat])
             #print('going well')
-        except:
+        except Exception as e:
+            error_log.error("game_id_to_match_detail error at iteration : {} ---> {}".format(i , e))
             #print('not going well')
             pass
     match_fin2 = match_fin.reset_index()
     del match_fin2['index']
+    end = datetime.datetime.now()
+    dur = end - start
+    seconds = dur.seconds
+    log.info("game_id_to_match_detail process duration ---> {} seconds".format(seconds))
     #print('done')
     return match_fin2
+
+
+
+
 
 
 
@@ -228,6 +220,9 @@ def modifiy_match_df_original(df):
     match_df = match_df.loc[select_indices, :].reset_index(drop=True)
     return match_df
 
+
+
+
 # def modfify_match_df(df):
 #     match_df = df.copy()
 #     match_df["gameId"] = list(map(lambda x: int(x), match_df["gameId"]))
@@ -253,96 +248,95 @@ def modifiy_match_df_original(df):
 #     return match_df
 
 
-class api_box:
-    def __init__(self, api_key_list):
-        self.number = 0
-        self.length_list  = len(api_key_list)
-        self.api_key_list = api_key_list
-        self.current_api_key = api_key_list[0]
-    def switch(self):
-        self.number = self.number +1
-        new_index = self.number % self.length_list
-        self.current_api_key = self.api_key_list[new_index]
-        return self.current_api_key
-    def returning(self):
-        return self.current_api_key
 
 
 # this one works with different apis
 # 각 타임라인에 찍힌 위치 정보가 필요한데, match-timelines 데이터에 모여있다.
 # 그래서 이 데이터를 가져와야한다.
-def get_time_line_list(df,main_api_key, api_key_list):
+def get_time_line_list(df,api_key , log , error_log):
+    log.info("processing ---> get_time_line_list")
+    start = datetime.datetime.now()
     match_df = df.copy()
     match_timeline_list = []
-    api_key_list.append(main_api_key)
-    api_machine = api_box(api_key_list)
-    for game_id in tqdm(match_df['gameId']): # 각 게임 아이디마다 요청
-        api_url = 'https://kr.api.riotgames.com/lol/match/v4/timelines/by-match/{}?api_key={}'.format(game_id , api_machine.current_api_key)
-        r = requests.get(api_url)
-        count = 0
-        while r.status_code == 429 or r.status_code == 504:
-            if r.status_code == 504:
-                print("gateaway timeout")
-                count = count + 1
-                if count == 150:
-                    break
-
-             # 요청 제한 또는 오류로 인해 정상적으로 받아오지 않는 상태라면, 3초 간 시간을 지연
-            time.sleep(3)
-            api_url = 'https://kr.api.riotgames.com/lol/match/v4/timelines/by-match/{}?api_key={}'.format(game_id , api_machine.switch())
+    for game_id in match_df['gameId']: # 각 게임 아이디마다 요청
+        api_url = 'https://kr.api.riotgames.com/lol/match/v4/timelines/by-match/{}?api_key={}'.format(game_id , api_key)
+        try:
             r = requests.get(api_url)
-        temp_match = pd.DataFrame(list(r.json().values())[0]) # 전체 데이터 저장 (데이터 값에 딕셔너리 형태로 필요한 정보가 저장)
-        temp_timeline = pd.DataFrame()
-        len_timeline = temp_match.shape[0]
-        for i in range(len_timeline): # 각 게임의 타임라인이 모두 다르기 때문 (1분 가량마다 타임라인이 찍힌다)
-            temp_current_timeline = pd.DataFrame(temp_match['participantFrames'].iloc[i]).T
-            if i != (len_timeline-1):
-                temp_position = pd.DataFrame(list(temp_current_timeline['position'].values), index=temp_current_timeline.index)
-                temp_current_timeline = pd.concat([temp_current_timeline, temp_position], axis=1)
-                temp_current_timeline.drop('position', axis=1, inplace=True)
-            temp_current_timeline['timestamp'] = temp_match['timestamp'][i]
-            temp_timeline = pd.concat([temp_timeline, temp_current_timeline], axis=0, sort=False)
-        temp_timeline["gameId"] = game_id
-        match_timeline_list.append(temp_timeline)
+            while r.status_code == 429 or r.status_code == 504:
+                time.sleep(3)
+                r = requests.get(api_url)
+            temp_match = pd.DataFrame(list(r.json().values())[0]) # 전체 데이터 저장 (데이터 값에 딕셔너리 형태로 필요한 정보가 저장)
+            temp_timeline = pd.DataFrame()
+            len_timeline = temp_match.shape[0]
+            for i in range(len_timeline): # 각 게임의 타임라인이 모두 다르기 때문 (1분 가량마다 타임라인이 찍힌다)
+                temp_current_timeline = pd.DataFrame(temp_match['participantFrames'].iloc[i]).T
+                if i != (len_timeline-1):
+                    temp_position = pd.DataFrame(list(temp_current_timeline['position'].values), index=temp_current_timeline.index)
+                    temp_current_timeline = pd.concat([temp_current_timeline, temp_position], axis=1)
+                    temp_current_timeline.drop('position', axis=1, inplace=True)
+                temp_current_timeline['timestamp'] = temp_match['timestamp'][i]
+                temp_timeline = pd.concat([temp_timeline, temp_current_timeline], axis=0, sort=False)
+            temp_timeline["gameId"] = game_id
+            match_timeline_list.append(temp_timeline)
+        except Exception as e:
+            error_log.error("get_time_line_list error at game {} ---> {}".format(game_id , e))
+            match_timeline_list.append(pd.DataFrame())
+            continue
+    end = datetime.datetime.now()
+    dur = end - start
+    seconds = dur.seconds
+    log.info("get_time_line_list process duration ---> {} seconds".format(seconds))
     return match_timeline_list
 
 
-def participants_for_lanes(match, timeline):
+
+def participants_for_lanes(match, timeline, log , error_log):
+    log.info("processing ---> participants_for_lanes")
+    start = datetime.datetime.now()
     match_df = match.copy()
     match_timeline_list = timeline.copy()
     lane_calculated = pd.DataFrame()
-    for k in tqdm(range(len(match_timeline_list)  ) ):              #len(match_timeline_list)
-        game_id = match_timeline_list[k]["gameId"][0]
-        if match_df.loc[match_df["gameId"] == game_id , "gameDuration"].tolist()[0] < 600: continue
-        cur_timeline = match_timeline_list[k].copy()                  ######## will modify
-        cur_timeline['jungleMinionsKilled'] = cur_timeline['jungleMinionsKilled'].astype('float64')
-        cur_timeline['minionsKilled'] = cur_timeline['minionsKilled'].astype('float64')
-        # 타임스탬프는 op.gg가 나타내는 아이템 타임스탬프와 비교 결과, 타임스탬프 값의 1000 단위가 1초인 것을 파악함
-        cur_timeline['timestamp'] = cur_timeline['timestamp'] / (1000*60)  # 타임스탬프 값을 분 단위로 변환
-        condition = (cur_timeline['timestamp'] > 2) & (cur_timeline['timestamp'] < 15)     # 15분 이상 : 라인전을 끝내고 다른 라인으로 이동할 수 있음
-        cur_timeline = cur_timeline.loc[condition].copy()
-        cur_timeline['x'], cur_timeline['y'] = MapScaler(cur_timeline)
-        player_spells = [(data['spell1Id'], data['spell2Id'])for data in match_df.loc[match_df["gameId"] == game_id, "participants" ].tolist()[0] ]  # 스펠 확인
-        player_spells = np.array(player_spells)
-        lane = {}
-        team = 100
-        for i in range(1, 11, 5):  # 라인 계산
-            jungle_participant,support_participant,jungle_index,support_index = SupJugPredict(cur_timeline, player_spells, i)
-            lane["JUNGLE_{}".format(str(team) )] = jungle_participant
-            for j in range(i, i+5):
-                if str(j) == jungle_index:
-                    continue
-                cur_player = cur_timeline.loc[str(j)].copy()
-                tempo_lane, _ = LanePredict(cur_player, support_index==str(j), jungle_index)
-                lane[tempo_lane+"_{}".format(str(team))] = cur_player["participantId"].tolist()[0]
-            team = team + 100
+    for k in range(len(match_timeline_list)) :              #len(match_timeline_list)
+        try:
+            game_id = match_timeline_list[k]["gameId"][0]
+            if match_df.loc[match_df["gameId"] == game_id , "gameDuration"].tolist()[0] < 600: continue
+            cur_timeline = match_timeline_list[k].copy()                  ######## will modify
+            cur_timeline['jungleMinionsKilled'] = cur_timeline['jungleMinionsKilled'].astype('float64')
+            cur_timeline['minionsKilled'] = cur_timeline['minionsKilled'].astype('float64')
+            # 타임스탬프는 op.gg가 나타내는 아이템 타임스탬프와 비교 결과, 타임스탬프 값의 1000 단위가 1초인 것을 파악함
+            cur_timeline['timestamp'] = cur_timeline['timestamp'] / (1000*60)  # 타임스탬프 값을 분 단위로 변환
+            condition = (cur_timeline['timestamp'] > 2) & (cur_timeline['timestamp'] < 15)     # 15분 이상 : 라인전을 끝내고 다른 라인으로 이동할 수 있음
+            cur_timeline = cur_timeline.loc[condition].copy()
+            cur_timeline['x'], cur_timeline['y'] = MapScaler(cur_timeline)
+            player_spells = [(data['spell1Id'], data['spell2Id'])for data in match_df.loc[match_df["gameId"] == game_id, "participants" ].tolist()[0] ]  # 스펠 확인
+            player_spells = np.array(player_spells)
+            lane = {}
+            team = 100
+            for i in range(1, 11, 5):  # 라인 계산
+                jungle_participant,support_participant,jungle_index,support_index = SupJugPredict(cur_timeline, player_spells, i)
+                lane["JUNGLE_{}".format(str(team) )] = jungle_participant
+                for j in range(i, i+5):
+                    if str(j) == jungle_index:
+                        continue
+                    cur_player = cur_timeline.loc[str(j)].copy()
+                    tempo_lane, _ = LanePredict(cur_player, support_index==str(j), jungle_index)
+                    lane[tempo_lane+"_{}".format(str(team))] = cur_player["participantId"].tolist()[0]
+                team = team + 100
 
-        lane['gameId'] = game_id
-        lane = pd.Series(lane)
-        if lane.value_counts().max() > 1: # 각 게임에 한 라인이 2명 이상이면 계산 착오로 판단하여 데이터 삭제
-            print("{}번째 계산이 잘못되었습니다.".format(str(match_df["gameID"][k] ) ))
-            continue
-        lane_calculated = pd.concat([lane_calculated, pd.Series(lane)], axis=1, sort=False)
+            lane['gameId'] = game_id
+            lane = pd.Series(lane)
+            if lane.value_counts().max() > 1: # 각 게임에 한 라인이 2명 이상이면 계산 착오로 판단하여 데이터 삭제
+                print("{}번째 계산이 잘못되었습니다.".format(str(match_df["gameID"][k] ) ))
+                continue
+            lane_calculated = pd.concat([lane_calculated, pd.Series(lane)], axis=1, sort=False)
+        except Exception as e:
+            error_log.error("participants_for_lanes error at iteration {} ---> {}".format(k , e))
+
+    end = datetime.datetime.now()
+    dur =  end - start
+    seconds = dur.seconds
+    log.info("participants_for_lanes process duration ---> {} seconds".format(seconds))
+
     return lane_calculated.T
 
 
@@ -469,6 +463,8 @@ def my_load_match_df():
 
 
 
+
+
 def modify_lane_matching_df(df):
     lane_matching_df = df.copy()
     lane_matching_df = lane_matching_df.reset_index(drop = True)
@@ -512,6 +508,8 @@ def get_win_loss_col(df):
     else:
         print("manually throwing an error")
         #5/0
+
+
 
 
 
@@ -638,64 +636,119 @@ def del_nan_merge_large(df):
 # same as 5 but just use name instead
 #six = path +"lol/summoner/v4/summoners/by-name/{}?api_key={}".format(summonerName,api_key)
 
-def get_summonerLevel(df, main_api_key, api_key_listing ,lane_team):
+
+
+main_api_key = api_config.main_api_key
+order = "1"
+
+df = show_grandmaster_info(main_api_key)
+
+---------------------------------------
+df = df.iloc[:50]
+log = api_logging.get_log_view(1, "platform", False, 'create_data_log')
+error_log = api_logging.get_log_view(1, "platform" , True, 'create_data_error_log')
+
+df = df_summoner_accountid(df,main_api_key , log ,error_log)
+match_info_df =  accountID_to_matchINFO(league_df3 = df, endIndex=2, api_key= main_api_key , log = log , error_log = error_log)
+match_info_df =  match_info_df.drop_duplicates(subset = "gameId").reset_index(drop = True)
+match_df = game_id_to_match_detail(match_info_df, main_api_key , log , error_log)
+match_df  = modifiy_match_df_original(match_df)
+match_df = match_df.drop_duplicates(subset = "gameId").reset_index(drop=True)
+match_df.to_csv("match_df_order{}.csv".format(order))
+match_time_list = get_time_line_list(match_df, main_api_key, log , error_log)
+spell = spell_general_info()
+lane_matching_df = participants_for_lanes(match_df, match_time_list , log , error_log)
+lane_info = modify_lane_matching_df(lane_matching_df)
+merged_info = merge_lane_info_to_match_info(match_df, lane_info)
+merged_info = modify_merged_info(merged_info)
+merged_info.to_csv("middle_point_saving1_order{}.csv".format(order))
+merged_info = get_win_loss_col(merged_info)
+merged_added = get_champion_sumId_cols(merged_info)
+all_lanes =["TOP100",
+"JUNGLE100","MID100","ADC100","SUPPORT100","TOP200","JUNGLE200","MID200","ADC200", "SUPPORT200"]
+
+merged_added = get_summonerLevel_for_all_lanes(merged_added,main_api_key, api_key_list,all_lanes)
+
+def get_summonerLevel_for_all_lanes(df, api_key ,all_lanes , log , error_log):
+    log.info("processing ---> get_summonerLevel_for_all_lanes")
+    start = datetime.datetime.now()
+    merged_added = df.copy()
+    #all_lanes = ["TOP100","JUNGLE100","MID100","ADC100","SUPPORT100","TOP200","JUNGLE200","MID200","ADC200","SUPPORT200"]
+    for lane in all_lanes:
+        log.info("get_summonerLevel_for_all_lanes at lane : {}".format(lane))
+        merged_added = get_summonerLevel(merged_added, api_key,lane , log , error_log)
+    end = datetime.datetime.now()
+    dur =  end - start
+    seconds = dur.seconds
+    log.info("get_summonerLevel_for_all_lanes duration ----> {}".format(seconds))
+    return merged_added
+
+
+
+def get_summonerLevel(df, api_key,lane_team , log ,error_log):
+    log.info("processing ---> get_summonerLevel")
+    start =datetime.datetime.now()
     merged_large = df.copy()
-    api_key_list = api_key_listing.copy()
-    api_key_list.append(main_api_key)
-    api_machine = api_box(api_key_list)
     path = "https://kr.api.riotgames.com/lol/summoner/v4/summoners/by-account/{}?api_key={}"
-    temp_path = "https://kr.api.riotgames.com/lol/summoner/v4/summoners/by-name/{}?api_key={}"
     merged_large["{}_summonerLevel".format(lane_team)] = None
-    for i in tqdm(range(len(merged_large  ))):
+    for i in range(len(merged_large  )):
+        api_url = path.format(merged_large["{}_accountId".format(lane_team)].iloc[i] , main_api_key )
         try:
-            #time.sleep(1)
-            api_url = path.format(merged_large["{}_accountId".format(lane_team)].iloc[i] , main_api_key )
             r = requests.get(api_url)
-            trying = True
-            count = 0
             while r.status_code == 429 or r.status_code ==504:
-                if trying:
-                    try:
-                        if r.status_code == 504:
-                            print("gateaway timeout")
-                            count = count + 1
-                            if count == 150:
-                                break
-                        api_url = temp_path.format(merged_large["{}_sumName".format(lane_team)].iloc[i] ,  api_machine.switch() )
-                        r = requests.get(api_url)
-                        if r.status_code == 404:
-                            api_url = path.format(merged_large["{}_accountId".format(lane_team)].iloc[i] , main_api_key )
-                            trying = False
-                            r = requests.get(api_url)
-                    except Exception as e:
-                        print("an error_here {}".format(e))
-                        trying = False
-                        continue
-                else:
-                    time.sleep(1)
-                    api_url = path.format(merged_large["{}_accountId".format(lane_team)].iloc[i] , main_api_key )
-                    r = requests.get(api_url)
-
-
-
-
-
+                time.sleep(3)
+                r = requests.get(api_url)
             merged_large["{}_summonerLevel".format(lane_team)].iloc[i] = r.json()["summonerLevel"]
-
         except Exception as e:
-                print("an error occured {}".format(e))
-                print(i)
+            error_log.error("get_summonerLevel error at iteration {} ---> {}".format(i , e))
+            error_log.error(api_url)
+    end = datetime.datetime.now()
+    dur = end - start
+    seconds = dur.seconds
+    log.info(seconds)
+
     return merged_large
 
 
-def get_summonerLevel_for_all_lanes(df, main_api_key, api_key_listing ,all_lanes):
-    merged_added = df.copy()
-    api_key_list = api_key_listing.copy()
-    #all_lanes = ["TOP100","JUNGLE100","MID100","ADC100","SUPPORT100","TOP200","JUNGLE200","MID200","ADC200","SUPPORT200"]
-    for lane in all_lanes:
-        print(lane)
-        merged_added = get_summonerLevel(merged_added, main_api_key, api_key_list ,lane)
-    return merged_added
+# def get_summonerLevel(df, main_api_key, api_key_listin ,lane_team):
+#     merged_large = df.copy()
+#     api_key_list = api_key_listing.copy()
+#     api_key_list.append(main_api_key)
+#     api_machine = api_box(api_key_list)
+#     path = "https://kr.api.riotgames.com/lol/summoner/v4/summoners/by-account/{}?api_key={}"
+#     temp_path = "https://kr.api.riotgames.com/lol/summoner/v4/summoners/by-name/{}?api_key={}"
+#     merged_large["{}_summonerLevel".format(lane_team)] = None
+#     for i in tqdm(range(len(merged_large  ))):
+#         try:
+#             #time.sleep(1)
+#             api_url = path.format(merged_large["{}_accountId".format(lane_team)].iloc[i] , main_api_key )
+#             r = requests.get(api_url)
+#             trying = True
+#             count = 0
+#             while r.status_code == 429 or r.status_code ==504:
+#                 if trying:
+#                     try:
+#                         api_url = temp_path.format(merged_large["{}_sumName".format(lane_team)].iloc[i] ,  api_machine.switch() )
+#                         r = requests.get(api_url)
+#                         if r.status_code == 404:
+#                             api_url = path.format(merged_large["{}_accountId".format(lane_team)].iloc[i] , main_api_key )
+#                             trying = False
+#                             r = requests.get(api_url)
+#                     except Exception as e:
+#                         print("an error_here {}".format(e))
+#                         trying = False
+#                         continue
+#                 else:
+#                     time.sleep(1)
+#                     api_url = path.format(merged_large["{}_accountId".format(lane_team)].iloc[i] , main_api_key )
+#                     r = requests.get(api_url)
+#
+#             merged_large["{}_summonerLevel".format(lane_team)].iloc[i] = r.json()["summonerLevel"]
+#
+#         except Exception as e:
+#                 print("an error occured {}".format(e))
+#                 print(i)
+#     return merged_large
 
 
 

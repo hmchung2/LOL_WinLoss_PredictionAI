@@ -116,3 +116,10 @@ feature_relations2 =  {'good': ['summonerLevel',
  'bad': ['losses', 'ranking_favorite_list', 'deats'],
  'good_categ': ['tier', 'veteran', 'hotStreak', 'tokens'],
  'bad_categ': ['rank', 'freshBlood']}
+
+
+
+class Config(object):
+    import os
+    root_path = os.getcwd()
+    season = "13"
