@@ -123,7 +123,7 @@ def accountID_to_matchINFO(league_df3, endIndex , api_key , log , error_log):
     log.info("procssing ---> accountId_to_matchINFO")
     # need account_id column in the data frame
     match_info_df = pd.DataFrame()
-    season = Config.season
+    season = api_config.Config.season
     EI = str(endIndex)
     start =datetime.datetime.now()
     for i in range(len(league_df3)):
@@ -149,7 +149,6 @@ def accountID_to_matchINFO(league_df3, endIndex , api_key , log , error_log):
     seconds = dur.seconds
     log.info("accountID_to_matchINFO process duration ---> : {} seconds".format(seconds))
     return match_info_df
-
 
 # Match 데이터 받기 (gameId를 통해 경기의 승패, 팀원과 같은 정보가 담겨있다.)
 ################# interchangeable but not recommending since we will use the data in the futrue  #########################33
@@ -204,7 +203,7 @@ def find_new_version(df):
 
 
 # when running in module withou stopping
-def modifiy_match_df_original(df):
+def modify_match_df_original(df):
     match_df = df.copy()
     #del match_df["status"]
     match_df = match_df.dropna()
@@ -469,8 +468,13 @@ def modify_lane_matching_df(df):
     lane_matching_df = df.copy()
     lane_matching_df = lane_matching_df.reset_index(drop = True)
     lane_matching_df = lane_matching_df.dropna()
-    lane_matching_df = lane_matching_df.astype(int)
+    for col in lane_matching_df.columns.tolist():
+        lane_matching_df[col] = list(map(lambda x: int(x)  , lane_matching_df[col] ))
+
     return lane_matching_df
+
+
+
 
 # 널 값 처리 및 전부 정수로 변환
 
@@ -635,39 +639,6 @@ def del_nan_merge_large(df):
 
 # same as 5 but just use name instead
 #six = path +"lol/summoner/v4/summoners/by-name/{}?api_key={}".format(summonerName,api_key)
-
-
-
-main_api_key = api_config.main_api_key
-order = "1"
-
-df = show_grandmaster_info(main_api_key)
-
----------------------------------------
-df = df.iloc[:50]
-log = api_logging.get_log_view(1, "platform", False, 'create_data_log')
-error_log = api_logging.get_log_view(1, "platform" , True, 'create_data_error_log')
-
-df = df_summoner_accountid(df,main_api_key , log ,error_log)
-match_info_df =  accountID_to_matchINFO(league_df3 = df, endIndex=2, api_key= main_api_key , log = log , error_log = error_log)
-match_info_df =  match_info_df.drop_duplicates(subset = "gameId").reset_index(drop = True)
-match_df = game_id_to_match_detail(match_info_df, main_api_key , log , error_log)
-match_df  = modifiy_match_df_original(match_df)
-match_df = match_df.drop_duplicates(subset = "gameId").reset_index(drop=True)
-match_df.to_csv("match_df_order{}.csv".format(order))
-match_time_list = get_time_line_list(match_df, main_api_key, log , error_log)
-spell = spell_general_info()
-lane_matching_df = participants_for_lanes(match_df, match_time_list , log , error_log)
-lane_info = modify_lane_matching_df(lane_matching_df)
-merged_info = merge_lane_info_to_match_info(match_df, lane_info)
-merged_info = modify_merged_info(merged_info)
-merged_info.to_csv("middle_point_saving1_order{}.csv".format(order))
-merged_info = get_win_loss_col(merged_info)
-merged_added = get_champion_sumId_cols(merged_info)
-all_lanes =["TOP100",
-"JUNGLE100","MID100","ADC100","SUPPORT100","TOP200","JUNGLE200","MID200","ADC200", "SUPPORT200"]
-
-merged_added = get_summonerLevel_for_all_lanes(merged_added,main_api_key, api_key_list,all_lanes)
 
 def get_summonerLevel_for_all_lanes(df, api_key ,all_lanes , log , error_log):
     log.info("processing ---> get_summonerLevel_for_all_lanes")
@@ -1445,11 +1416,12 @@ gm_df = show_grandmaster_info(main_api_key)
 gm_df = gm_df.iloc[:20 , : 20]
 len(gm_df)
 
-gm_df = df_summoner_accountid(gm_df, main_api_key , log ,error_log)
 
 
 log = api_logging.get_log_view(1, "platform", False, 'create_data_log')
 error_log = api_logging.get_log_view(1, "platform" , True, 'create_data_error_log')
+
+gm_df = df_summoner_accountid(gm_df, main_api_key , log ,error_log)
 
 
 
@@ -1478,26 +1450,57 @@ def df_summoner_accountid(league_df,api_key , log , error_log):
 
 
 
+match_info_df =  accountID_to_matchINFO(league_df3 = gm_df, endIndex=2, api_key= main_api_key , log  = log ,error_log = error_log)
 
-match_info_df =  accountID_to_matchINFO(league_df3 = gm_df, endIndex=2, api_key= main_api_key)
+match_info_df
+
+
 match_info_df =  match_info_df.drop_duplicates(subset = "gameId").reset_index(drop = True)
-match_df = game_id_to_match_detail(match_info_df, main_api_key)
-match_df  = modifiy_match_df_original(match_df)
+
+
+match_df = game_id_to_match_detail(match_info_df, main_api_key , log , error_log)
+
+match_df
+
+match_df  = modify_match_df_original(match_df)
+
+
+
 b = datetime.datetime.now()
 match_df.to_csv("match_df.csv")
 print(b - a )
 
-
+match_df.shape
 c = datetime.datetime.now()
+
 match_df = match_df.drop_duplicates(subset = "gameId").reset_index(drop=True)
-match_time_list = get_time_line_list(match_df, main_api_key, api_key_list)
+
+match_time_list = get_time_line_list(match_df, main_api_key , log ,error_log)
+match_time_list[0]
+
+----------------------------------------------------------------------------------------
+
+
+-----------------------------------------------------------------------------------
 spell = spell_general_info()
-lane_matching_df = participants_for_lanes(match_df, match_time_list)
+
+
+
+lane_matching_df = participants_for_lanes(match_df, match_time_list, log ,error_log)
+
+
 lane_info = modify_lane_matching_df(lane_matching_df)
+
 merged_info = merge_lane_info_to_match_info(match_df, lane_info)
 
+
 try:
-    merged_info = modify_merged_info(merged_info)
+merged_info = modify_merged_info(merged_info)
+merged_info
+
+
+
+
 except Exception as e:
     print("modify_merged_info error : {}".format(e))
 merged_info.to_csv("middle_point_saving1.csv")
@@ -1518,9 +1521,79 @@ e = datetime.datetime.now()
 #################################################################################
 #################################################################################
 
-    merged_info = get_win_loss_col(merged_info)
-    merged_added = get_champion_sumId_cols(merged_info)
-    merged_added = get_summonerLevel_for_all_lanes(merged_added,main_api_key, api_key_list,all_lanes)
+merged_info = get_win_loss_col(merged_info)
+
+
+merged_added = get_champion_sumId_cols(merged_info)
+merged_added = get_summonerLevel_for_all_lanes(merged_added,main_api_key,all_lanes , log, error_log)
+
+merged_added
+---------------------------------------------
+def get_summonerLevel_for_all_lanes(df, api_key ,all_lanes , log , error_log):
+    log.info("processing ---> get_summonerLevel_for_all_lanes")
+    start = datetime.datetime.now()
+    merged_added = df.copy()
+    #all_lanes = ["TOP100","JUNGLE100","MID100","ADC100","SUPPORT100","TOP200","JUNGLE200","MID200","ADC200","SUPPORT200"]
+    for lane in all_lanes:
+        log.info("get_summonerLevel_for_all_lanes at lane : {}".format(lane))
+        merged_added = get_summonerLevel(merged_added, api_key,lane , log , error_log)
+    end = datetime.datetime.now()
+    dur =  end - start
+    seconds = dur.seconds
+    log.info("get_summonerLevel_for_all_lanes duration ----> {}".format(seconds))
+    return merged_added
+
+
+def get_summonerLevel_for_all_lanes(df, api_key ,all_lanes , log , error_log):
+    log.info("processing ---> get_summonerLevel_for_all_lanes")
+    start = datetime.datetime.now()
+    merged_added = df.copy()
+    #all_lanes = ["TOP100","JUNGLE100","MID100","ADC100","SUPPORT100","TOP200","JUNGLE200","MID200","ADC200","SUPPORT200"]
+    for lane in all_lanes:
+        log.info("get_summonerLevel_for_all_lanes at lane : {}".format(lane))
+        merged_added = get_summonerLevel(merged_added, api_key,lane , log , error_log)
+    end = datetime.datetime.now()
+    dur =  end - start
+    seconds = dur.seconds
+    log.info("get_summonerLevel_for_all_lanes duration ----> {}".format(seconds))
+    return merged_added
+
+
+def get_summonerLevel(df, api_key,lane_team , log ,error_log):
+    log.info("processing ---> get_summonerLevel")
+    start =datetime.datetime.now()
+    merged_large = df.copy()
+    path = "https://kr.api.riotgames.com/lol/summoner/v4/summoners/by-account/{}?api_key={}"
+    merged_large["{}_summonerLevel".format(lane_team)] = None
+    for i in range(len(merged_large  )):
+        api_url = path.format(merged_large["{}_accountId".format(lane_team)].iloc[i] , main_api_key )
+        try:
+            r = requests.get(api_url)
+            while r.status_code == 429 or r.status_code ==504:
+                time.sleep(3)
+                r = requests.get(api_url)
+            merged_large["{}_summonerLevel".format(lane_team)].iloc[i] = r.json()["summonerLevel"]
+        except Exception as e:
+            error_log.error("get_summonerLevel error at iteration {} ---> {}".format(i , e))
+            error_log.error(api_url)
+    end = datetime.datetime.now()
+    dur = end - start
+    seconds = dur.seconds
+    log.info(seconds)
+
+    return merged_large
+
+
+
+---------------------------------------------
+
+
+
+
+
+
+
+
     merged_added = merged_added.dropna()
     merged_added = get_win_los_rate_info_all_lanes(merged_added , main_api_key , api_key_list ,all_lanes )
     merged_added = merged_added.dropna()
