@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import time
 from collections import Counter
-from tqdm import tqdm
+
 from skimage import io # 미니맵 처리
 from sklearn.preprocessing import MinMaxScaler
 from pandas.api.types import is_numeric_dtype
@@ -17,7 +17,7 @@ import api_config
 import api_logging
 from sqlalchemy import create_engine, types, select
 from sqlalchemy import *
-import pymysql
+
 from packaging import version
 import datetime
 
@@ -1428,52 +1428,96 @@ api_key1 = 'RGAPI-10b7e0b9-7424-4db6-9a18-d4b55eff2f2c'
 
 
 if __name__ == '__main__':
-    import datetime
-    main_api_key = api_config.main_api_key
+import datetime
+import imp
+imp.reload(api_config)
+print(main_api_key)
 
-    api_key1 = "RGAPI-97f5f62b-8ccb-4b9d-b34c-554b9f4b4499"
-    api_key2 = "RGAPI-15aefc8d-50cd-4a90-81fd-af88acd38312"
-    api_key3 = "RGAPI-4d18bd3f-e718-4cb3-8ce6-c32d59d0987c"
-    api_key_list = [api_key1 , api_key2, api_key3]
-    all_lanes =["TOP100","JUNGLE100","MID100","ADC100","SUPPORT100","TOP200","JUNGLE200","MID200","ADC200", "SUPPORT200"]
+main_api_key = api_config.main_api_key
 
-    a = datetime.datetime.now()
-    gm_df = show_grandmaster_info(main_api_key)
-    gm_df = df_summoner_accountid(gm_df, main_api_key)
-    match_info_df =  accountID_to_matchINFO(league_df3 = gm_df, endIndex=2, api_key= main_api_key)
-    match_info_df =  match_info_df.drop_duplicates(subset = "gameId").reset_index(drop = True)
-    match_df = game_id_to_match_detail(match_info_df, main_api_key)
-    match_df  = modifiy_match_df_original(match_df)
-    b = datetime.datetime.now()
-    match_df.to_csv("match_df.csv")
-    print(b - a )
+all_lanes =["TOP100","JUNGLE100","MID100","ADC100","SUPPORT100","TOP200","JUNGLE200","MID200","ADC200", "SUPPORT200"]
+
+a = datetime.datetime.now()
+
+gm_df = show_grandmaster_info(main_api_key)
 
 
-    c = datetime.datetime.now()
-    match_df = match_df.drop_duplicates(subset = "gameId").reset_index(drop=True)
-    match_time_list = get_time_line_list(match_df, main_api_key, api_key_list)
-    spell = spell_general_info()
-    lane_matching_df = participants_for_lanes(match_df, match_time_list)
-    lane_info = modify_lane_matching_df(lane_matching_df)
-    merged_info = merge_lane_info_to_match_info(match_df, lane_info)
+gm_df = gm_df.iloc[:20 , : 20]
+len(gm_df)
 
-    try:
-        merged_info = modify_merged_info(merged_info)
-    except Exception as e:
-        print("modify_merged_info error : {}".format(e))
-    merged_info.to_csv("middle_point_saving1.csv")
-    d = datetime.datetime.now()
-    print(d - c)
+gm_df = df_summoner_accountid(gm_df, main_api_key , log ,error_log)
+
+
+log = api_logging.get_log_view(1, "platform", False, 'create_data_log')
+error_log = api_logging.get_log_view(1, "platform" , True, 'create_data_error_log')
 
 
 
-    ##
-    merged_info = pd.read_csv("middle_point_saving1.csv" , index_col = 0)
-    for column in ['teams', 'participants', 'participantIdentities']:
-        merged_info[column] = merged_info[column].map(lambda v: eval(v))
 
-    ###
-    e = datetime.datetime.now()
+def df_summoner_accountid(league_df,api_key , log , error_log):
+    league_df['account_id'] = None
+    for i in range(len(league_df)):
+        try:
+            #sohwan = 'https://kr.api.riotgames.com/lol/summoner/v4/summoners/by-name/' + league_df['summonerName'].iloc[i] + '?api_key=' + api_key
+            sohwan = 'https://kr.api.riotgames.com/lol/summoner/v4/summoners/' + league_df['summonerId'].iloc[i] + '?api_key=' + api_key
+            r = requests.get(sohwan)
+
+            while r.status_code == 429 or r.status_code == 504:
+                time.sleep(3)
+                log.info("time to wait")
+                r = requests.get(sohwan)
+            account_id = r.json()['accountId']
+
+            league_df.iloc[i, -1] = account_id
+            log.info("going good")
+        except Exception as e:
+            error_log.error('df_summoner_accountid error at iteration {} ---> {}'.format( i, e))
+            pass
+    return league_df
+
+
+
+
+
+match_info_df =  accountID_to_matchINFO(league_df3 = gm_df, endIndex=2, api_key= main_api_key)
+match_info_df =  match_info_df.drop_duplicates(subset = "gameId").reset_index(drop = True)
+match_df = game_id_to_match_detail(match_info_df, main_api_key)
+match_df  = modifiy_match_df_original(match_df)
+b = datetime.datetime.now()
+match_df.to_csv("match_df.csv")
+print(b - a )
+
+
+c = datetime.datetime.now()
+match_df = match_df.drop_duplicates(subset = "gameId").reset_index(drop=True)
+match_time_list = get_time_line_list(match_df, main_api_key, api_key_list)
+spell = spell_general_info()
+lane_matching_df = participants_for_lanes(match_df, match_time_list)
+lane_info = modify_lane_matching_df(lane_matching_df)
+merged_info = merge_lane_info_to_match_info(match_df, lane_info)
+
+try:
+    merged_info = modify_merged_info(merged_info)
+except Exception as e:
+    print("modify_merged_info error : {}".format(e))
+merged_info.to_csv("middle_point_saving1.csv")
+d = datetime.datetime.now()
+print(d - c)
+
+
+
+##
+merged_info = pd.read_csv("middle_point_saving1.csv" , index_col = 0)
+for column in ['teams', 'participants', 'participantIdentities']:
+    merged_info[column] = merged_info[column].map(lambda v: eval(v))
+
+###
+e = datetime.datetime.now()
+
+
+#################################################################################
+#################################################################################
+
     merged_info = get_win_loss_col(merged_info)
     merged_added = get_champion_sumId_cols(merged_info)
     merged_added = get_summonerLevel_for_all_lanes(merged_added,main_api_key, api_key_list,all_lanes)

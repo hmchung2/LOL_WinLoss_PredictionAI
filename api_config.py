@@ -4,7 +4,7 @@
 # from selenium.webdriver.common.by import By
 # import requests
 
-main_api_key = "your own api key"
+main_api_key = "RGAPI-600c083d-9e48-4fad-9b9c-54bc70ef445a"
 
 
 
