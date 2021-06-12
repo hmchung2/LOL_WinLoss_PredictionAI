@@ -509,7 +509,7 @@ def get_summonerLevel(df, api_key,lane_team , log ,error_log):
     end = datetime.datetime.now()
     dur = end - start
     seconds = dur.seconds
-    log.info(seconds + " seconds")
+    log.info( "{} seconds".format(seconds))
 
     return merged_large
 
@@ -968,17 +968,17 @@ def change_champID_to_champName(df ,general_champ_df ,lanes):
 
 if __name__ == '__main__':
 
-    main_api_key = api_config.main_api_key
+main_api_key = api_config.main_api_key
 
-    all_lanes =["TOP100","JUNGLE100","MID100","ADC100","SUPPORT100","TOP200","JUNGLE200","MID200","ADC200", "SUPPORT200"]
+all_lanes =["TOP100","JUNGLE100","MID100","ADC100","SUPPORT100","TOP200","JUNGLE200","MID200","ADC200", "SUPPORT200"]
 
-    log = api_logging.get_log_view(1, "platform", False, 'create_data_log')
-    error_log = api_logging.get_log_view(1, "platform" , True, 'create_data_error_log')
+log = api_logging.get_log_view(1, "platform", False, 'create_data_log')
+error_log = api_logging.get_log_view(1, "platform" , True, 'create_data_error_log')
 
 
-    gm_df = show_grandmaster_info(main_api_key)
+gm_df = show_grandmaster_info(main_api_key)
 
-    gm_df = gm_df.iloc[:20 , : 20]
+gm_df = gm_df.iloc[:20 , : 20]
 
     gm_df = df_summoner_accountid(gm_df, main_api_key , log ,error_log)
 
