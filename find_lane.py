@@ -959,9 +959,6 @@ def change_champID_to_champName(df ,general_champ_df ,lanes):
 # connect_db.insert_df(final_final , "grandmaster_0805)
 
 
-
-
-
 if __name__ == '__main__':
 
     main_api_key = api_config.main_api_key
@@ -974,7 +971,7 @@ if __name__ == '__main__':
 
     gm_df = show_grandmaster_info(main_api_key)
 
-    gm_df = gm_df.iloc[:20 , : 20]
+    gm_df = gm_df.iloc[:200 , : ]
 
     gm_df = df_summoner_accountid(gm_df, main_api_key , log ,error_log)
 
@@ -1020,8 +1017,15 @@ if __name__ == '__main__':
 
 
     final_final = final_final_modify(merged_final)
+    from datetime import datetime
+    now = datetime.now()
+    data_path = "data_storage/final_data"+ str(now.strftime("%y%m%d%H%M%S")) + ".csv"
+
+
 
     final_final.to_csv("final_final.csv")
+    final_final.to_csv(data_path)
+
 
 
 # pymysql.install_as_MySQLdb()
