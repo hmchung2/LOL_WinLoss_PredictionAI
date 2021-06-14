@@ -973,6 +973,8 @@ if __name__ == '__main__':
 
     gm_df = gm_df.iloc[:200 , : ]
 
+    gm_df.to_csv("final_final1005.csv")
+
     gm_df = df_summoner_accountid(gm_df, main_api_key , log ,error_log)
 
     match_info_df =  accountID_to_matchINFO(league_df3 = gm_df, endIndex=2, api_key= main_api_key , log  = log ,error_log = error_log)
@@ -1021,9 +1023,6 @@ if __name__ == '__main__':
     now = datetime.now()
     data_path = "data_storage/final_data"+ str(now.strftime("%y%m%d%H%M%S")) + ".csv"
 
-
-
-    final_final.to_csv("final_final.csv")
     final_final.to_csv(data_path)
 
 
